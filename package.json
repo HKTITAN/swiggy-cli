@@ -1,0 +1,78 @@
+{
+  "name": "swiggy-cli",
+  "version": "0.1.0",
+  "description": "Human- and agent-friendly CLI for the official Swiggy MCP servers (food, instamart, dineout).",
+  "type": "module",
+  "license": "MIT",
+  "author": "swiggy-cli contributors",
+  "homepage": "https://github.com/HKTITAN/swiggy-cli",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/HKTITAN/swiggy-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/HKTITAN/swiggy-cli/issues"
+  },
+  "keywords": [
+    "swiggy",
+    "mcp",
+    "cli",
+    "food",
+    "instamart",
+    "dineout",
+    "agent",
+    "ai",
+    "anthropic",
+    "claude",
+    "skills",
+    "skills.sh",
+    "model-context-protocol"
+  ],
+  "bin": {
+    "swiggy": "./dist/cli.js",
+    "smn": "./dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "AGENTS.md",
+    "CHANGELOG.md",
+    "wiki",
+    "skills",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js",
+    "lint": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "npm run build",
+    "pack:check": "npm pack --dry-run"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.5",
+    "commander": "^12.1.0",
+    "ora": "^8.1.1",
+    "prompts": "^2.4.2",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@types/prompts": "^2.4.9",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.4"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true,
+    "registry": "https://registry.npmjs.org/"
+  }
+}

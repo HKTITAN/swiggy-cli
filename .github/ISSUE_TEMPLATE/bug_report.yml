@@ -1,0 +1,53 @@
+name: Bug report
+description: Something in swiggy-cli isn't working as documented.
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: Include the exact command you ran and what you expected vs. what occurred.
+      placeholder: |
+        Command: swiggy food search-restaurants -q biryani --json
+        Expected: JSON envelope with `data` array
+        Got: ...
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: Paste full stderr + stdout. Run with `--json` so the envelope is machine-readable.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: swiggy-cli version
+      description: Output of `swiggy --version`
+    validations:
+      required: true
+  - type: input
+    id: node
+    attributes:
+      label: Node version
+      description: Output of `node -v`
+    validations:
+      required: true
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options:
+        - macOS
+        - Linux
+        - Windows
+    validations:
+      required: true
+  - type: textarea
+    id: doctor
+    attributes:
+      label: Doctor output
+      description: Output of `swiggy doctor --json`. Redact tokens.
+      render: json

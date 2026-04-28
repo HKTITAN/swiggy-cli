@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Swiggy MCP server manifest
+    url: https://github.com/Swiggy/swiggy-mcp-server-manifest
+    about: For issues with the upstream MCP servers themselves (auth, tool behavior, server outages), file there — not here.
+  - name: Swiggy MCP builder docs
+    url: https://mcp.swiggy.com/builders/docs/
+    about: API reference, tool docs, parameter schemas.
+  - name: Discussion / questions
+    url: https://github.com/HKTITAN/swiggy-cli/discussions
+    about: For usage questions and ideas. File a bug only if something is verifiably broken.

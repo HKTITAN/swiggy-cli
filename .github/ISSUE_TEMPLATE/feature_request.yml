@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest a new command, alias, or improvement.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed UX
+      description: Show the command(s) you'd want to type and their output. Stay close to existing patterns where possible.
+      render: shell
+  - type: dropdown
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - Layer A — ergonomic verb (food/instamart/dineout)
+        - Layer B — generic command (servers/tools/schema/call)
+        - Auth / config / profile
+        - Output / rendering
+        - Documentation / wiki / skill
+        - Other
+    validations:
+      required: true
