@@ -8,11 +8,11 @@ import { buildAuthCommands } from "./commands/auth.js";
 import { buildConfigCommands } from "./commands/config.js";
 import { buildProfileCommands } from "./commands/profile.js";
 import { buildDoctorCommand } from "./commands/doctor.js";
-import { renderError } from "./lib/output.js";
+import { renderError, renderStartupBanner } from "./lib/output.js";
 import { CliError } from "./lib/errors.js";
 import { BRAND } from "./lib/output.js";
 
-const VERSION = "0.1.0";
+const VERSION = "0.1.1";
 
 const program = new Command();
 
@@ -30,7 +30,7 @@ program
   .option("--plain", "emit TSV-style line-oriented output")
   .option("--raw", "emit raw MCP response payload")
   .option("--quiet", "suppress non-essential output")
-  .option("--no-interactive", "disable prompts, colors, spinners")
+  .option("--no-interactive", "disable prompts and spinners (machine mode)")
   .option("-y, --yes", "auto-confirm destructive actions")
   .option("--profile <name>", "use a named profile")
   .showHelpAfterError("(run swiggy --help for usage)")
@@ -57,6 +57,11 @@ buildAuthCommands(program);
 buildConfigCommands(program);
 buildProfileCommands(program);
 buildDoctorCommand(program);
+
+program.hook("preAction", (_thisCommand, actionCommand) => {
+  const opts = actionCommand.optsWithGlobals();
+  renderStartupBanner(opts);
+});
 
 program.parseAsync(process.argv).catch((err: unknown) => {
   const opts = program.opts();

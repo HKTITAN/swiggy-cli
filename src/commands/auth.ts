@@ -1,7 +1,7 @@
 import { Command } from "commander";
 import { attachOutputOptions, readGlobalOpts } from "./common.js";
 import { renderError, renderResult, startSpinner } from "../lib/output.js";
-import { interactiveAuthLoginV2, loadAuth, clearAuth } from "../lib/auth.js";
+import { interactiveAuthLoginV2, loadAuth, clearAuth, evaluateAuthHealth } from "../lib/auth.js";
 import { SERVER_NAMES, type ServerName } from "../types/index.js";
 import { getCurrentProfile, endpointFor } from "../lib/config.js";
 import { UsageError } from "../lib/errors.js";
@@ -39,7 +39,8 @@ export function buildAuthCommands(program: Command): void {
           const opts = readGlobalOpts(auth);
           try {
             const targets = o.server ? [assertServer(o.server)] : SERVER_NAMES;
-            const { profile } = await getCurrentProfile();
+            const { profile } = await getCurrentProfile(opts.profile);
+            const parsedPort = parsePort(o.port);
             for (const s of targets) {
               const sp = startSpinner(`Starting OAuth for ${s}…`, opts);
               try {
@@ -49,8 +50,7 @@ export function buildAuthCommands(program: Command): void {
                   clientId: o.clientId,
                   clientSecret: o.clientSecret,
                   redirectHost: o.redirectHost,
-                  port: o.port ? Number(o.port) : undefined,
-                  open: tryOpen,
+                  port: parsedPort,
                 });
               } finally {
                 sp?.stop();
@@ -74,11 +74,13 @@ export function buildAuthCommands(program: Command): void {
           const state = await loadAuth();
           const data = SERVER_NAMES.map((s) => {
             const e = state.servers[s];
+            const health = evaluateAuthHealth(e);
             return {
               server: s,
-              authenticated: Boolean(e?.accessToken),
-              expiresAt: e?.expiresAt ? new Date(e.expiresAt).toISOString() : null,
-              hasRefresh: Boolean(e?.refreshToken),
+              authenticated: health.authenticated,
+              reason: health.reason,
+              expiresAt: health.expiresAt ? new Date(health.expiresAt).toISOString() : null,
+              hasRefresh: health.hasRefresh,
             };
           });
           renderResult(data, opts);
@@ -106,18 +108,18 @@ export function buildAuthCommands(program: Command): void {
   );
 }
 
-async function tryOpen(url: string): Promise<void> {
-  // Best-effort: do not fail if `open` is not available (no extra dep).
-  const platform = process.platform;
-  const { spawn } = await import("node:child_process");
-  const cmd = platform === "darwin" ? "open" : platform === "win32" ? "cmd" : "xdg-open";
-  const args = platform === "win32" ? ["/c", "start", "", url] : [url];
-  spawn(cmd, args, { detached: true, stdio: "ignore" }).unref();
-}
-
 function assertServer(s: string): ServerName {
   if (!SERVER_NAMES.includes(s as ServerName)) {
     throw new UsageError(`Unknown server "${s}". Valid: ${SERVER_NAMES.join(", ")}`);
   }
   return s as ServerName;
+}
+
+function parsePort(port?: string): number | undefined {
+  if (!port) return undefined;
+  const parsed = Number(port);
+  if (!Number.isInteger(parsed) || parsed < 1 || parsed > 65535) {
+    throw new UsageError(`Invalid --port "${port}". Expected an integer between 1 and 65535.`);
+  }
+  return parsed;
 }

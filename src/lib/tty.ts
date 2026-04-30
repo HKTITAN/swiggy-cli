@@ -6,8 +6,8 @@ export function isMachineMode(opts: { json?: boolean; plain?: boolean; raw?: boo
   return Boolean(opts.json || opts.plain || opts.raw || opts.noInteractive) || !isInteractive();
 }
 
-export function shouldUseColor(opts: { json?: boolean; plain?: boolean; quiet?: boolean }): boolean {
-  if (opts.json || opts.plain) return false;
+export function shouldUseColor(opts: { json?: boolean; plain?: boolean; quiet?: boolean; noInteractive?: boolean }): boolean {
+  if (opts.json || opts.plain || opts.noInteractive) return false;
   if (process.env.NO_COLOR) return false;
   if (process.env.FORCE_COLOR) return true;
   return Boolean(process.stdout.isTTY);

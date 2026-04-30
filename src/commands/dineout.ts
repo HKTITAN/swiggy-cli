@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { attachOutputOptions, callTool, readGlobalOpts } from "./common.js";
+import { attachOutputOptions, callTool, parseJsonInput, readGlobalOpts } from "./common.js";
 
 export function buildDineoutCommands(program: Command): void {
   const d = program.command("dineout").description("Swiggy Dineout: discover restaurants, slots, bookings");
@@ -61,7 +61,7 @@ export function buildDineoutCommands(program: Command): void {
       .description("Create a Dineout booking cart")
       .option("--input <json>", "raw arguments JSON", "{}")
       .action(async (o: { input?: string }) => {
-        await callTool("dineout", "create_cart", JSON.parse(o.input || "{}"), readGlobalOpts(d));
+        await callTool("dineout", "create_cart", parseJsonInput(o.input || "{}"), readGlobalOpts(d));
       })
   );
 
@@ -71,7 +71,7 @@ export function buildDineoutCommands(program: Command): void {
       .description("Book a table — destructive, requires confirmation")
       .option("--input <json>", "booking payload JSON", "{}")
       .action(async (o: { input?: string }) => {
-        await callTool("dineout", "book_table", JSON.parse(o.input || "{}"), readGlobalOpts(d));
+        await callTool("dineout", "book_table", parseJsonInput(o.input || "{}"), readGlobalOpts(d));
       })
   );
 

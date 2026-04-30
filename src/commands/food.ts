@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { attachOutputOptions, callTool, readGlobalOpts } from "./common.js";
+import { attachOutputOptions, callTool, parseJsonInput, readGlobalOpts } from "./common.js";
 
 export function buildFoodCommands(program: Command): void {
   const food = program.command("food").description("Swiggy Food: search, menus, cart, orders");
@@ -65,7 +65,7 @@ export function buildFoodCommands(program: Command): void {
       .option("--input <json>", "raw arguments JSON (overrides flags)")
       .action(async (o: { restaurantId?: string; itemId?: string; quantity?: string; input?: string }) => {
         const args = o.input
-          ? JSON.parse(o.input)
+          ? parseJsonInput(o.input)
           : stripUndefined({
               restaurant_id: o.restaurantId,
               item_id: o.itemId,
@@ -109,7 +109,7 @@ export function buildFoodCommands(program: Command): void {
       .option("--address-id <id>", "delivery address id")
       .option("--input <json>", "raw arguments JSON")
       .action(async (o: { addressId?: string; input?: string }) => {
-        const args = o.input ? JSON.parse(o.input) : stripUndefined({ address_id: o.addressId });
+        const args = o.input ? parseJsonInput(o.input) : stripUndefined({ address_id: o.addressId });
         await callTool("food", "place_food_order", args, readGlobalOpts(food));
       })
   );

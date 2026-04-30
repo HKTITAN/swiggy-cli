@@ -3,7 +3,7 @@ import { attachOutputOptions, readGlobalOpts } from "./common.js";
 import { renderError, renderResult } from "../lib/output.js";
 import { SERVER_NAMES } from "../types/index.js";
 import { getCurrentProfile, endpointFor } from "../lib/config.js";
-import { loadAuth, discoverOAuthMetadata } from "../lib/auth.js";
+import { loadAuth, discoverOAuthMetadata, evaluateAuthHealth } from "../lib/auth.js";
 import { McpClient } from "../lib/mcp.js";
 
 export function buildDoctorCommand(program: Command): void {
@@ -14,7 +14,7 @@ export function buildDoctorCommand(program: Command): void {
       .action(async () => {
         const opts = readGlobalOpts(program);
         try {
-          const { profile, name } = await getCurrentProfile();
+          const { profile, name } = await getCurrentProfile(opts.profile);
           const auth = await loadAuth();
           const checks: Array<{ check: string; ok: boolean; detail?: string }> = [];
           checks.push({ check: `node>=20`, ok: Number(process.versions.node.split(".")[0]) >= 20, detail: process.version });
@@ -23,10 +23,11 @@ export function buildDoctorCommand(program: Command): void {
           for (const s of SERVER_NAMES) {
             const url = endpointFor(s, profile);
             checks.push({ check: `${s}.endpoint`, ok: true, detail: url });
+            const authHealth = evaluateAuthHealth(auth.servers[s]);
             checks.push({
               check: `${s}.auth`,
-              ok: Boolean(auth.servers[s]?.accessToken),
-              detail: auth.servers[s]?.accessToken ? "token present" : "missing — run swiggy auth init",
+              ok: authHealth.authenticated,
+              detail: authHealth.reason,
             });
             try {
               await discoverOAuthMetadata(url);

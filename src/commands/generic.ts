@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { attachOutputOptions, callTool, readGlobalOpts } from "./common.js";
+import { attachOutputOptions, callTool, parseJsonInput, readGlobalOpts } from "./common.js";
 import { getCurrentProfile, DEFAULT_ENDPOINTS, endpointFor } from "../lib/config.js";
 import { McpClient } from "../lib/mcp.js";
 import { renderError, renderResult, startSpinner } from "../lib/output.js";
@@ -15,7 +15,7 @@ export function buildGenericCommands(program: Command): void {
       .action(async () => {
         const opts = readGlobalOpts(program);
         try {
-          const { profile, name: profileName } = await getCurrentProfile();
+          const { profile, name: profileName } = await getCurrentProfile(opts.profile);
           const data = SERVER_NAMES.map((s) => ({
             name: s,
             url: endpointFor(s, profile),
@@ -37,7 +37,7 @@ export function buildGenericCommands(program: Command): void {
         const opts = readGlobalOpts(program);
         try {
           assertServer(server);
-          const { profile, name: profileName } = await getCurrentProfile();
+          const { profile, name: profileName } = await getCurrentProfile(opts.profile);
           const sp = startSpinner(`Discovering tools on ${server}…`, opts);
           const client = new McpClient({ server, profile });
           let tools;
@@ -62,7 +62,7 @@ export function buildGenericCommands(program: Command): void {
         const opts = readGlobalOpts(program);
         try {
           assertServer(server);
-          const { profile, name: profileName } = await getCurrentProfile();
+          const { profile, name: profileName } = await getCurrentProfile(opts.profile);
           const sp = startSpinner(`Fetching schema for ${server}/${tool}…`, opts);
           const client = new McpClient({ server, profile });
           let schema;
@@ -92,13 +92,9 @@ export function buildGenericCommands(program: Command): void {
           let args: unknown = {};
           if (localOpts.inputFile) {
             const { readFile } = await import("node:fs/promises");
-            args = JSON.parse(await readFile(localOpts.inputFile, "utf8"));
+            args = parseJsonInput(await readFile(localOpts.inputFile, "utf8"), "--input-file");
           } else if (localOpts.input) {
-            try {
-              args = JSON.parse(localOpts.input);
-            } catch (e) {
-              throw new UsageError(`--input is not valid JSON: ${(e as Error).message}`);
-            }
+            args = parseJsonInput(localOpts.input);
           }
           await callTool(server, tool, args, opts);
         } catch (err) {

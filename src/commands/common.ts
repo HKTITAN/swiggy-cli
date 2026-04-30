@@ -4,6 +4,7 @@ import { getCurrentProfile } from "../lib/config.js";
 import { McpClient, extractToolPayload } from "../lib/mcp.js";
 import { renderError, renderResult, startSpinner, brand } from "../lib/output.js";
 import { CliError } from "../lib/errors.js";
+import { UsageError } from "../lib/errors.js";
 import { confirm } from "../lib/confirm.js";
 import { DESTRUCTIVE_TOOLS } from "../lib/aliases.js";
 
@@ -13,8 +14,8 @@ export function attachOutputOptions(cmd: Command): Command {
     .option("--plain", "emit TSV-style line-oriented output")
     .option("--raw", "emit raw MCP response payload as JSON")
     .option("--quiet", "suppress non-essential output")
-    .option("--no-interactive", "disable prompts, colors, spinners")
-    .option("-y, --yes", "auto-confirm risky actions")
+    .option("--no-interactive", "disable prompts and spinners (machine mode)")
+    .option("-y, --yes", "auto-confirm destructive actions")
     .option("--profile <name>", "use a named profile");
 }
 
@@ -44,7 +45,7 @@ export async function callTool(
     if (DESTRUCTIVE_TOOLS.has(tool)) {
       await confirm(`Run destructive tool "${tool}" on ${server}`, opts);
     }
-    const { profile, name: profileName } = await getCurrentProfile();
+    const { profile, name: profileName } = await getCurrentProfile(opts.profile);
     const ctx = { ...opts, server, tool, profile: opts.profile || profileName };
     const sp = startSpinner(`${brand("swiggy", opts)} · calling ${server}/${tool}…`, opts);
     const client = new McpClient({ server, profile });
@@ -62,5 +63,13 @@ export async function callTool(
   } catch (err) {
     const code = renderError(err, { ...opts, server, tool });
     process.exitCode = code;
+  }
+}
+
+export function parseJsonInput(input: string, flagName = "--input"): unknown {
+  try {
+    return JSON.parse(input);
+  } catch (err) {
+    throw new UsageError(`${flagName} is not valid JSON: ${(err as Error).message}`);
   }
 }

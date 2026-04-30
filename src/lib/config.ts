@@ -44,10 +44,10 @@ export async function saveConfig(cfg: RootConfig): Promise<void> {
   await writeFile(PATHS.configFile, JSON.stringify(cfg, null, 2), { mode: 0o600 });
 }
 
-export async function getCurrentProfile(): Promise<{ name: string; profile: ProfileConfig }> {
+export async function getCurrentProfile(selectedProfile?: string): Promise<{ name: string; profile: ProfileConfig }> {
   const cfg = await loadConfig();
   const envProfile = process.env.SWIGGY_PROFILE;
-  const name = envProfile || cfg.currentProfile || "default";
+  const name = selectedProfile || envProfile || cfg.currentProfile || "default";
   const profile = cfg.profiles[name] || {};
   return { name, profile };
 }

@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 import { createServer } from "node:http";
 import { createHash, randomBytes } from "node:crypto";
 import { PATHS } from "./paths.js";
-import { CliError, AuthRequiredError } from "./errors.js";
+import { CliError, AuthRequiredError, NetworkError } from "./errors.js";
 import type { AuthState, ServerName } from "../types/index.js";
 
 /**
@@ -34,8 +34,10 @@ export async function loadAuth(): Promise<AuthState> {
   if (!existsSync(PATHS.authFile)) return { servers: {} };
   try {
     return JSON.parse(await readFile(PATHS.authFile, "utf8")) as AuthState;
-  } catch {
-    return { servers: {} };
+  } catch (err) {
+    throw new CliError("CONFIG_ERROR", `Failed to read auth at ${PATHS.authFile}: ${(err as Error).message}`, {
+      hint: "Please run swiggy auth init again to recreate credentials.",
+    });
   }
 }
 
@@ -55,8 +57,11 @@ export async function getAccessToken(server: ServerName): Promise<string | undef
         auth.servers[server] = { ...entry, ...refreshed };
         await saveAuth(auth);
         return refreshed.accessToken;
-      } catch {
-        return undefined;
+      } catch (err) {
+        throw new CliError("AUTH_FAILED", `Stored credentials for "${server}" are no longer valid.`, {
+          hint: `Run: swiggy auth init --server ${server}`,
+          details: { reason: err instanceof Error ? err.message : String(err) },
+        });
       }
     }
     return undefined;
@@ -91,16 +96,26 @@ export async function discoverOAuthMetadata(serverUrl: string): Promise<OAuthMet
     `${serverUrl.replace(/\/$/, "")}/.well-known/oauth-authorization-server`,
     new URL("/.well-known/oauth-authorization-server", serverUrl).toString(),
   ];
+  let sawNetworkFailure = false;
+  let lastStatus: number | undefined;
   for (const url of candidates) {
     try {
       const res = await fetch(url, { headers: { accept: "application/json" } });
       if (res.ok) return (await res.json()) as OAuthMetadata;
+      lastStatus = res.status;
     } catch {
+      sawNetworkFailure = true;
       // try next
     }
   }
+  if (sawNetworkFailure) {
+    throw new NetworkError(
+      `Could not reach OAuth metadata endpoint for ${serverUrl}. Check connectivity and endpoint reachability.`
+    );
+  }
   throw new CliError("AUTH_FAILED", `Could not discover OAuth metadata for ${serverUrl}`, {
-    hint: "Check connectivity and that the MCP endpoint is reachable.",
+    details: { lastStatus },
+    hint: "OAuth metadata endpoint returned an unexpected response. Check server URL or re-authenticate.",
   });
 }
 
@@ -110,29 +125,28 @@ interface OAuthClient {
 }
 
 /**
- * Resolve a client_id. Swiggy MCP does NOT advertise RFC 7591 dynamic client registration —
- * the manifest at https://github.com/Swiggy/swiggy-mcp-server-manifest pre-whitelists
- * specific OAuth clients (Claude, ChatGPT, VS Code, plus loopback for CLI use).
- *
+ * Resolve a client_id for OAuth login.
  * Resolution order:
  *   1. explicit `clientId` argument (e.g. `--client-id` flag)
  *   2. SWIGGY_OAUTH_CLIENT_ID env var
- *   3. error with actionable hint
+ *   3. dynamic client registration via metadata.registration_endpoint
  */
-function resolveClient(explicitClientId?: string, explicitClientSecret?: string): OAuthClient {
+async function resolveClient(
+  metadata: OAuthMetadata,
+  redirectUri: string,
+  explicitClientId?: string,
+  explicitClientSecret?: string
+): Promise<OAuthClient> {
   const id = explicitClientId || process.env.SWIGGY_OAUTH_CLIENT_ID;
-  if (!id) {
-    throw new CliError(
-      "AUTH_FAILED",
-      "No OAuth client_id available. Swiggy MCP requires a pre-registered client.",
-      {
-        hint:
-          "Pass `--client-id <id>` to `swiggy auth init`, or set SWIGGY_OAUTH_CLIENT_ID. " +
-          "See https://github.com/Swiggy/swiggy-mcp-server-manifest for the whitelisted clients.",
-      }
-    );
+  if (id) {
+    return { client_id: id, client_secret: explicitClientSecret || process.env.SWIGGY_OAUTH_CLIENT_SECRET };
   }
-  return { client_id: id, client_secret: explicitClientSecret || process.env.SWIGGY_OAUTH_CLIENT_SECRET };
+  if (!metadata.registration_endpoint) {
+    throw new CliError("AUTH_FAILED", "No OAuth client_id available and dynamic registration is not supported.", {
+      hint: "Pass --client-id <id> or set SWIGGY_OAUTH_CLIENT_ID.",
+    });
+  }
+  return registerDynamicClient(metadata.registration_endpoint, redirectUri);
 }
 
 function pkce(): { verifier: string; challenge: string } {
@@ -151,7 +165,6 @@ interface InteractiveAuthOptions {
   clientId?: string;
   /** Override SWIGGY_OAUTH_CLIENT_SECRET (omit for public clients with PKCE). */
   clientSecret?: string;
-  open?: (url: string) => Promise<void> | void;
 }
 
 /**
@@ -170,9 +183,6 @@ export async function interactiveAuthLoginV2(opts: InteractiveAuthOptions): Prom
   const expectedState = randomBytes(16).toString("hex");
   const { verifier, challenge } = pkce();
 
-  // Resolve the OAuth client BEFORE binding a port — fail fast on misconfiguration.
-  const client = resolveClient(opts.clientId, opts.clientSecret);
-
   // Bind a loopback port for the redirect URI. Swiggy whitelists http://127.0.0.1
   // and http://localhost (with or without /callback) — RFC 8252 §7.3 mandates that
   // any port on the loopback host matches the registered URI.
@@ -184,6 +194,7 @@ export async function interactiveAuthLoginV2(opts: InteractiveAuthOptions): Prom
   const addr = server.address();
   const boundPort = typeof addr === "object" && addr ? addr.port : port;
   const redirectUri = `http://${host}:${boundPort}/callback`;
+  const client = await resolveClient(metadata, redirectUri, opts.clientId, opts.clientSecret);
 
   const codePromise = new Promise<string>((resolve, reject) => {
     server.on("request", (req, res) => {
@@ -228,15 +239,14 @@ export async function interactiveAuthLoginV2(opts: InteractiveAuthOptions): Prom
   authUrl.searchParams.set("code_challenge_method", "S256");
   authUrl.searchParams.set("scope", (metadata.scopes_supported || ["mcp"]).join(" "));
   const link = authUrl.toString();
+  // Print the URL on its own line so terminals can detect it as a clickable link.
   // eslint-disable-next-line no-console
-  console.error(`\nOpen this URL in your browser to sign in to Swiggy (${opts.server}):\n  ${link}\n`);
-  if (opts.open) {
-    try {
-      await opts.open(link);
-    } catch {
-      // ignore
-    }
-  }
+  console.error(`\nSign in to Swiggy (${opts.server}) by opening this URL:`);
+  console.error("Press Ctrl + Click to open:");
+  // eslint-disable-next-line no-console
+  console.error(link);
+  // eslint-disable-next-line no-console
+  console.error("");
 
   const code = await codePromise;
 
@@ -314,5 +324,82 @@ async function refreshAccessToken(entry: AuthState["servers"][string]): Promise<
     refreshToken: tok.refresh_token || entry.refreshToken,
     expiresAt: tok.expires_in ? Date.now() + tok.expires_in * 1000 : undefined,
     tokenType: tok.token_type || entry.tokenType,
+  };
+}
+
+async function registerDynamicClient(registrationEndpoint: string, redirectUri: string): Promise<OAuthClient> {
+  const body = {
+    client_name: "swiggy-cli",
+    redirect_uris: [redirectUri],
+    grant_types: ["authorization_code"],
+    response_types: ["code"],
+    token_endpoint_auth_method: "none",
+  };
+  let res: Response;
+  try {
+    res = await fetch(registrationEndpoint, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch (err) {
+    throw new CliError("AUTH_FAILED", `OAuth client registration failed: ${(err as Error).message}`, {
+      hint: "Set SWIGGY_OAUTH_CLIENT_ID or pass --client-id <id> and retry.",
+    });
+  }
+  if (!res.ok) {
+    throw new CliError("AUTH_FAILED", `OAuth client registration failed: ${res.status} ${res.statusText}`, {
+      hint: "Set SWIGGY_OAUTH_CLIENT_ID or pass --client-id <id> and retry.",
+    });
+  }
+  const registered = (await res.json()) as { client_id?: string; client_secret?: string };
+  if (!registered.client_id) {
+    throw new CliError("AUTH_FAILED", "OAuth client registration response did not include client_id.", {
+      hint: "Set SWIGGY_OAUTH_CLIENT_ID or pass --client-id <id> and retry.",
+    });
+  }
+  return { client_id: registered.client_id, client_secret: registered.client_secret };
+}
+
+export interface AuthHealth {
+  authenticated: boolean;
+  reason: string;
+  expiresAt: number | null;
+  hasRefresh: boolean;
+}
+
+export function evaluateAuthHealth(entry?: AuthState["servers"][string]): AuthHealth {
+  if (!entry?.accessToken) {
+    return {
+      authenticated: false,
+      reason: "missing - run swiggy auth init",
+      expiresAt: null,
+      hasRefresh: false,
+    };
+  }
+  const hasRefresh = Boolean(entry.refreshToken);
+  const expiresAt = entry.expiresAt ?? null;
+  const nowWithSkew = Date.now() + 30_000;
+  if (expiresAt !== null && expiresAt < nowWithSkew && !hasRefresh) {
+    return {
+      authenticated: false,
+      reason: "token expired - run swiggy auth init",
+      expiresAt,
+      hasRefresh,
+    };
+  }
+  if (expiresAt !== null && expiresAt < nowWithSkew && hasRefresh && !entry.tokenEndpoint) {
+    return {
+      authenticated: false,
+      reason: "token refresh misconfigured - run swiggy auth init",
+      expiresAt,
+      hasRefresh,
+    };
+  }
+  return {
+    authenticated: true,
+    reason: hasRefresh ? "token available (refresh enabled)" : "token available",
+    expiresAt,
+    hasRefresh,
   };
 }

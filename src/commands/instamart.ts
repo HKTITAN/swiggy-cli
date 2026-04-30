@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { attachOutputOptions, callTool, readGlobalOpts } from "./common.js";
+import { attachOutputOptions, callTool, parseJsonInput, readGlobalOpts } from "./common.js";
 
 export function buildInstamartCommands(program: Command): void {
   const im = program.command("instamart").description("Swiggy Instamart: groceries, cart, checkout");
@@ -38,7 +38,7 @@ export function buildInstamartCommands(program: Command): void {
       .description("Create a delivery address")
       .option("--input <json>", "address payload JSON", "{}")
       .action(async (o: { input?: string }) => {
-        await callTool("instamart", "create_address", JSON.parse(o.input || "{}"), readGlobalOpts(im));
+        await callTool("instamart", "create_address", parseJsonInput(o.input || "{}"), readGlobalOpts(im));
       })
   );
 
@@ -69,7 +69,7 @@ export function buildInstamartCommands(program: Command): void {
       .option("--input <json>", "raw arguments JSON")
       .action(async (o: { productId?: string; quantity?: string; input?: string }) => {
         const args = o.input
-          ? JSON.parse(o.input)
+          ? parseJsonInput(o.input)
           : strip({ product_id: o.productId, quantity: o.quantity ? Number(o.quantity) : undefined });
         await callTool("instamart", "update_cart", args, readGlobalOpts(im));
       })
@@ -91,7 +91,7 @@ export function buildInstamartCommands(program: Command): void {
       .option("--address-id <id>", "delivery address id")
       .option("--input <json>", "raw arguments JSON")
       .action(async (o: { addressId?: string; input?: string }) => {
-        const args = o.input ? JSON.parse(o.input) : strip({ address_id: o.addressId });
+        const args = o.input ? parseJsonInput(o.input) : strip({ address_id: o.addressId });
         await callTool("instamart", "checkout", args, readGlobalOpts(im));
       })
   );

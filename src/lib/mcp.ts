@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { CliError, McpProtocolError, NetworkError } from "./errors.js";
-import { getAccessToken, requireAccessToken } from "./auth.js";
+import { getAccessToken } from "./auth.js";
 import { endpointFor } from "./config.js";
 import type { McpTool, McpToolResult, ProfileConfig, ServerName } from "../types/index.js";
 
@@ -77,10 +77,14 @@ export class McpClient {
     }
 
     if (res.status === 401 || res.status === 403) {
-      // Force a re-auth for the caller
-      await requireAccessToken(this.server);
-      throw new CliError("AUTH_REQUIRED", `Authentication rejected by ${this.server}.`, {
-        hint: `Re-run: swiggy auth init --server ${this.server}`,
+      const hadToken = Boolean(headers.authorization);
+      if (!hadToken) {
+        throw new CliError("AUTH_REQUIRED", `Authentication required for server "${this.server}".`, {
+          hint: `Run: swiggy auth init --server ${this.server}`,
+        });
+      }
+      throw new CliError("AUTH_FAILED", `Stored credentials were rejected by ${this.server}.`, {
+        hint: `Run: swiggy auth init --server ${this.server}`,
       });
     }
 
@@ -116,7 +120,7 @@ export class McpClient {
       {
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: {} },
-        clientInfo: { name: "swiggy-cli", version: "0.1.0" },
+        clientInfo: { name: "swiggy-cli", version: "0.1.1" },
       },
       false
     );
