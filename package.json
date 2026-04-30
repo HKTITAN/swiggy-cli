@@ -60,7 +60,7 @@
     "commander": "^12.1.0",
     "ora": "^8.1.1",
     "prompts": "^2.4.2",
-    "zod": "^3.23.8"
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/node": "^20.14.10",
