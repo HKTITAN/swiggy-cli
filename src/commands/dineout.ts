@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { UsageError } from "../lib/errors.js";
-import { attachOutputOptions, callTool, parseJsonInput, readGlobalOpts } from "./common.js";
+import { attachOutputOptions, callTool, ensureDineoutLocation, parseJsonInput, readGlobalOpts } from "./common.js";
 
 export function buildDineoutCommands(program: Command): void {
   const d = program.command("dineout").description("Swiggy Dineout: discover restaurants, slots, bookings");
@@ -11,10 +11,36 @@ export function buildDineoutCommands(program: Command): void {
       .description("Search Dineout restaurants")
       .option("-q, --query <q>", "search query")
       .option("-c, --city <city>", "city")
+      .option("--address-id <id>", "saved location id from dineout locations")
+      .option("--lat <lat>", "latitude")
+      .option("--lng <lng>", "longitude")
       .option("--cuisine <cuisine>", "cuisine filter")
-      .action(async (o: { query?: string; city?: string; cuisine?: string }) => {
-        await callTool("dineout", "search_restaurants_dineout", strip(o), readGlobalOpts(d));
-      })
+      .action(
+        async (o: {
+          query?: string;
+          city?: string;
+          cuisine?: string;
+          addressId?: string;
+          lat?: string;
+          lng?: string;
+        }) => {
+          const opts = readGlobalOpts(d);
+          const location = await ensureDineoutLocation(
+            opts,
+            strip({ address_id: o.addressId, lat: o.lat, lng: o.lng }),
+            "dineout search"
+          );
+          const locationArgs = "address_id" in location
+            ? { addressId: location.address_id, lat: location.lat, lng: location.lng }
+            : location;
+          await callTool(
+            "dineout",
+            "search_restaurants_dineout",
+            strip({ query: o.query, city: o.city, cuisine: o.cuisine, ...locationArgs }),
+            opts
+          );
+        }
+      )
   );
 
   attachOutputOptions(

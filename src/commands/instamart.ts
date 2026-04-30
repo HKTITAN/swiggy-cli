@@ -10,8 +10,11 @@ export function buildInstamartCommands(program: Command): void {
       .command("search")
       .description("Search Instamart products")
       .option("-q, --query <q>", "search query")
-      .action(async (o: { query?: string }) => {
-        await callTool("instamart", "search_products", strip(o), readGlobalOpts(im));
+      .option("--address-id <id>", "delivery address id")
+      .action(async (o: { query?: string; addressId?: string }) => {
+        const opts = readGlobalOpts(im);
+        const addressId = await ensureAddressId("instamart", opts, o.addressId, { requiredBy: "instamart search" });
+        await callTool("instamart", "search_products", strip({ query: o.query, addressId }), opts);
       })
   );
 
@@ -19,8 +22,11 @@ export function buildInstamartCommands(program: Command): void {
     im
       .command("go-to-items")
       .description("Show your frequently-ordered Instamart items")
-      .action(async () => {
-        await callTool("instamart", "your_go_to_items", {}, readGlobalOpts(im));
+      .option("--address-id <id>", "delivery address id")
+      .action(async (o: { addressId?: string }) => {
+        const opts = readGlobalOpts(im);
+        const addressId = await ensureAddressId("instamart", opts, o.addressId, { requiredBy: "instamart go-to-items" });
+        await callTool("instamart", "your_go_to_items", { addressId }, opts);
       })
   );
 
@@ -102,7 +108,7 @@ export function buildInstamartCommands(program: Command): void {
         const addressId = o.input
           ? undefined
           : await ensureAddressId("instamart", opts, o.addressId, { requiredBy: "instamart checkout" });
-        const args = o.input ? parseJsonInput(o.input) : strip({ address_id: addressId });
+        const args = o.input ? parseJsonInput(o.input) : strip({ addressId });
         await callTool("instamart", "checkout", args, opts);
       })
   );

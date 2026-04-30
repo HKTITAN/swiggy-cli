@@ -118,10 +118,49 @@ export async function ensureAddressId(
   return response.addressId as string;
 }
 
+interface DineoutLocation {
+  address_id?: string;
+  lat?: string;
+  lng?: string;
+}
+
+export async function ensureDineoutLocation(
+  opts: ExecOpts,
+  current: DineoutLocation,
+  requiredBy: string
+): Promise<DineoutLocation> {
+  if (current.address_id || (current.lat && current.lng)) return current;
+  if (isMachineMode(opts)) {
+    throw new UsageError(
+      `Missing location for ${requiredBy}.`,
+      "Use --address-id <id> (from `swiggy dineout locations`) or --lat/--lng"
+    );
+  }
+  const { profile } = await getCurrentProfile(opts.profile);
+  const client = new McpClient({ server: "dineout", profile });
+  const result = await client.callTool("get_saved_locations", {});
+  const payload = extractToolPayload(result);
+  const addresses = extractAddresses(payload);
+  if (addresses.length === 0) {
+    throw new UsageError("No saved locations found for dineout.", "Use --lat/--lng to search by coordinates");
+  }
+  const response = await prompts({
+    type: "select",
+    name: "addressId",
+    message: `Select location for ${requiredBy}:`,
+    choices: addresses.map((a) => ({ title: a.label, value: a.id })),
+  });
+  if (!response.addressId) {
+    throw new UsageError("Location selection cancelled.", "Re-run with --address-id, or use --lat/--lng");
+  }
+  return { address_id: response.addressId as string };
+}
+
 function extractAddresses(payload: unknown): Array<{ id: string; label: string }> {
-  if (!Array.isArray(payload)) return [];
+  const list = resolveAddressList(payload);
+  if (!Array.isArray(list)) return [];
   const addresses: Array<{ id: string; label: string }> = [];
-  for (const item of payload) {
+  for (const item of list) {
     if (!item || typeof item !== "object") continue;
     const record = item as Record<string, unknown>;
     const id = firstString(record, ["address_id", "addressId", "id"]);
@@ -133,6 +172,26 @@ function extractAddresses(payload: unknown): Array<{ id: string; label: string }
     addresses.push({ id, label });
   }
   return addresses;
+}
+
+function resolveAddressList(payload: unknown): unknown[] | undefined {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return undefined;
+  const record = payload as Record<string, unknown>;
+  if (Array.isArray(record.addresses)) return record.addresses as unknown[];
+  const nestedData = record.data;
+  if (nestedData && typeof nestedData === "object") {
+    const nested = nestedData as Record<string, unknown>;
+    if (Array.isArray(nested.addresses)) return nested.addresses as unknown[];
+    if (nested.data && typeof nested.data === "object") {
+      const deeper = nested.data as Record<string, unknown>;
+      if (Array.isArray(deeper.addresses)) return deeper.addresses as unknown[];
+      if (Array.isArray(deeper.locations)) return deeper.locations as unknown[];
+    }
+    if (Array.isArray(nested.locations)) return nested.locations as unknown[];
+  }
+  if (Array.isArray(record.locations)) return record.locations as unknown[];
+  return undefined;
 }
 
 function firstString(source: Record<string, unknown>, keys: string[]): string | undefined {
@@ -149,12 +208,23 @@ function extractMcpToolErrorMessage(result: { content?: Array<{ type?: string; t
     .map((chunk) => (chunk.text as string).trim())
     .filter((text) => text.length > 0);
   if (texts.length === 0) return undefined;
-  return texts[0];
+  const first = texts[0]!;
+  try {
+    const parsed = JSON.parse(first) as { error?: { message?: string }; message?: string };
+    if (parsed?.error?.message && typeof parsed.error.message === "string") return parsed.error.message;
+    if (parsed?.message && typeof parsed.message === "string") return parsed.message;
+  } catch {
+    // keep raw text
+  }
+  return first;
 }
 
 function hintForToolError(server: ServerName, message: string): string | undefined {
   if (/address[_ ]?id is required/i.test(message)) {
     return `Run: swiggy ${server} addresses, then retry with --address-id <id>`;
+  }
+  if (/location is required/i.test(message) && server === "dineout") {
+    return "Run: swiggy dineout locations, then retry with --address-id <id> (or pass --lat/--lng)";
   }
   if (/required/i.test(message)) {
     return `Run: swiggy schema ${server} <tool> --json to inspect required arguments`;

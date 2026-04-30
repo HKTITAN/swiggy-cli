@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import Table from "cli-table3";
 import { attachOutputOptions, type ExecOpts, readGlobalOpts } from "./common.js";
 import { renderError, renderResult, startSpinner } from "../lib/output.js";
 import { interactiveAuthLoginV2, loadAuth, clearAuth, evaluateAuthHealth, extractTokenClaims } from "../lib/auth.js";
@@ -84,7 +85,7 @@ export function buildAuthCommands(program: Command): void {
               hasRefresh: health.hasRefresh,
             };
           });
-          renderResult({ authFile: PATHS.authFile, servers: data }, opts);
+          renderResult({ authFile: PATHS.authFile, servers: data }, opts, renderAuthSummary as never);
         } catch (err) {
           process.exitCode = renderError(err, opts);
         }
@@ -158,8 +159,41 @@ export async function runWhoami(opts: ExecOpts, server?: string): Promise<void> 
               : null,
       };
     });
-    renderResult({ authFile: PATHS.authFile, servers: data }, opts);
+    renderResult({ authFile: PATHS.authFile, servers: data }, opts, renderAuthSummary as never);
   } catch (err) {
     process.exitCode = renderError(err, opts);
   }
+}
+
+function renderAuthSummary(
+  data: {
+    authFile: string;
+    servers: Array<{
+      server: string;
+      authenticated: boolean;
+      reason: string;
+      subject?: string | null;
+      issuer?: string | null;
+      expiresAt?: string | null;
+      hasRefresh?: boolean;
+    }>;
+  }
+): void {
+  process.stdout.write(`authFile: ${data.authFile}\n`);
+  const table = new Table({
+    head: ["server", "authenticated", "reason", "subject", "issuer", "expiresAt"],
+    style: { head: [], border: [] },
+    wordWrap: true,
+  });
+  for (const row of data.servers) {
+    table.push([
+      row.server,
+      row.authenticated ? "yes" : "no",
+      row.reason ?? "—",
+      row.subject ?? "—",
+      row.issuer ?? "—",
+      row.expiresAt ?? "—",
+    ]);
+  }
+  process.stdout.write(`${table.toString()}\n`);
 }

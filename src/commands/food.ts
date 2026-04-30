@@ -20,7 +20,7 @@ export function buildFoodCommands(program: Command): void {
         await callTool(
           "food",
           "search_restaurants",
-          stripUndefined({ query: o.query, city: o.city, address_id: addressId, lat: o.lat, lng: o.lng }),
+          stripUndefined({ query: o.query, city: o.city, addressId, lat: o.lat, lng: o.lng }),
           opts
         );
       })
@@ -31,8 +31,11 @@ export function buildFoodCommands(program: Command): void {
       .command("search-menu")
       .description("Search menu items across restaurants")
       .option("-q, --query <q>", "search query")
-      .action(async (o: { query?: string }) => {
-        await callTool("food", "search_menu", stripUndefined(o), readGlobalOpts(food));
+      .option("--address-id <id>", "delivery address id")
+      .action(async (o: { query?: string; addressId?: string }) => {
+        const opts = readGlobalOpts(food);
+        const addressId = await ensureAddressId("food", opts, o.addressId, { requiredBy: "food search-menu" });
+        await callTool("food", "search_menu", stripUndefined({ query: o.query, addressId }), opts);
       })
   );
 
@@ -62,8 +65,11 @@ export function buildFoodCommands(program: Command): void {
     food
       .command("cart")
       .description("Show your current food cart")
-      .action(async () => {
-        await callTool("food", "get_food_cart", {}, readGlobalOpts(food));
+      .option("--address-id <id>", "delivery address id")
+      .action(async (o: { addressId?: string }) => {
+        const opts = readGlobalOpts(food);
+        const addressId = await ensureAddressId("food", opts, o.addressId, { requiredBy: "food cart" });
+        await callTool("food", "get_food_cart", { addressId }, opts);
       })
   );
 
@@ -134,7 +140,7 @@ export function buildFoodCommands(program: Command): void {
         const addressId = o.input
           ? undefined
           : await ensureAddressId("food", opts, o.addressId, { requiredBy: "food checkout" });
-        const args = o.input ? parseJsonInput(o.input) : stripUndefined({ address_id: addressId });
+        const args = o.input ? parseJsonInput(o.input) : stripUndefined({ addressId });
         await callTool("food", "place_food_order", args, opts);
       })
   );
@@ -143,8 +149,11 @@ export function buildFoodCommands(program: Command): void {
     food
       .command("orders")
       .description("List your recent food orders")
-      .action(async () => {
-        await callTool("food", "get_food_orders", {}, readGlobalOpts(food));
+      .option("--address-id <id>", "delivery address id")
+      .action(async (o: { addressId?: string }) => {
+        const opts = readGlobalOpts(food);
+        const addressId = await ensureAddressId("food", opts, o.addressId, { requiredBy: "food orders" });
+        await callTool("food", "get_food_orders", { addressId }, opts);
       })
   );
 
