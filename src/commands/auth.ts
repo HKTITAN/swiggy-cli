@@ -1,9 +1,10 @@
 import { Command } from "commander";
 import { attachOutputOptions, readGlobalOpts } from "./common.js";
 import { renderError, renderResult, startSpinner } from "../lib/output.js";
-import { interactiveAuthLoginV2, loadAuth, clearAuth, evaluateAuthHealth } from "../lib/auth.js";
+import { interactiveAuthLoginV2, loadAuth, clearAuth, evaluateAuthHealth, extractTokenClaims } from "../lib/auth.js";
 import { SERVER_NAMES, type ServerName } from "../types/index.js";
 import { getCurrentProfile, endpointFor } from "../lib/config.js";
+import { PATHS } from "../lib/paths.js";
 import { UsageError } from "../lib/errors.js";
 
 export function buildAuthCommands(program: Command): void {
@@ -16,7 +17,7 @@ export function buildAuthCommands(program: Command): void {
       .option("--server <name>", `server: ${SERVER_NAMES.join("|")} (default: all)`)
       .option(
         "--client-id <id>",
-        "OAuth client_id (overrides SWIGGY_OAUTH_CLIENT_ID). Required: Swiggy does not support dynamic client registration."
+        "OAuth client_id (overrides SWIGGY_OAUTH_CLIENT_ID). Optional when dynamic registration is available."
       )
       .option(
         "--client-secret <secret>",
@@ -67,7 +68,7 @@ export function buildAuthCommands(program: Command): void {
   attachOutputOptions(
     auth
       .command("status")
-      .description("Show authentication status for all servers")
+      .description("Show authentication status for all servers and token health")
       .action(async () => {
         const opts = readGlobalOpts(auth);
         try {
@@ -83,7 +84,43 @@ export function buildAuthCommands(program: Command): void {
               hasRefresh: health.hasRefresh,
             };
           });
-          renderResult(data, opts);
+          renderResult({ authFile: PATHS.authFile, servers: data }, opts);
+        } catch (err) {
+          process.exitCode = renderError(err, opts);
+        }
+      })
+  );
+
+  attachOutputOptions(
+    auth
+      .command("whoami")
+      .description("Show signed-in identity details inferred from stored token claims")
+      .option("--server <name>", `server: ${SERVER_NAMES.join("|")} (default: all)`)
+      .action(async (o: { server?: string }) => {
+        const opts = readGlobalOpts(auth);
+        try {
+          const targets = o.server ? [assertServer(o.server)] : SERVER_NAMES;
+          const state = await loadAuth();
+          const data = targets.map((s) => {
+            const entry = state.servers[s];
+            const claims = extractTokenClaims(entry?.accessToken);
+            const health = evaluateAuthHealth(entry);
+            return {
+              server: s,
+              authenticated: health.authenticated,
+              reason: health.reason,
+              subject: typeof claims?.sub === "string" ? claims.sub : null,
+              issuer: typeof claims?.iss === "string" ? claims.iss : null,
+              issuedAt: typeof claims?.iat === "number" ? new Date(claims.iat * 1000).toISOString() : null,
+              expiresAt:
+                typeof claims?.exp === "number"
+                  ? new Date(claims.exp * 1000).toISOString()
+                  : health.expiresAt
+                    ? new Date(health.expiresAt).toISOString()
+                    : null,
+            };
+          });
+          renderResult({ authFile: PATHS.authFile, servers: data }, opts);
         } catch (err) {
           process.exitCode = renderError(err, opts);
         }
@@ -93,7 +130,7 @@ export function buildAuthCommands(program: Command): void {
   attachOutputOptions(
     auth
       .command("logout")
-      .description("Clear stored credentials")
+      .description("Clear stored credentials (all servers by default)")
       .option("--server <name>", "log out of one server only")
       .action(async (o: { server?: string }) => {
         const opts = readGlobalOpts(auth);

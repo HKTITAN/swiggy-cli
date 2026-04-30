@@ -1,3 +1,5 @@
+import { PATHS } from "./paths.js";
+
 /**
  * Stable, agent-readable error codes.
  *
@@ -53,7 +55,7 @@ export class CliError extends Error {
 export class AuthRequiredError extends CliError {
   constructor(server: string) {
     super("AUTH_REQUIRED", `Authentication required for server "${server}".`, {
-      hint: `Run: swiggy auth init --server ${server}`,
+      hint: `Run: swiggy auth status --json (auth store: ${PATHS.authFile}), then swiggy auth init --server ${server}`,
       details: { server },
     });
   }

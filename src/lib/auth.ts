@@ -69,6 +69,36 @@ export async function getAccessToken(server: ServerName): Promise<string | undef
   return entry.accessToken;
 }
 
+export interface AuthLookupState {
+  authFile: string;
+  hasAuthFile: boolean;
+  hasServerEntry: boolean;
+  hasAccessToken: boolean;
+  expiresAt: number | null;
+}
+
+export async function getAuthLookupState(server: ServerName): Promise<AuthLookupState> {
+  const hasAuthFile = existsSync(PATHS.authFile);
+  if (!hasAuthFile) {
+    return {
+      authFile: PATHS.authFile,
+      hasAuthFile,
+      hasServerEntry: false,
+      hasAccessToken: false,
+      expiresAt: null,
+    };
+  }
+  const auth = await loadAuth();
+  const entry = auth.servers[server];
+  return {
+    authFile: PATHS.authFile,
+    hasAuthFile,
+    hasServerEntry: Boolean(entry),
+    hasAccessToken: Boolean(entry?.accessToken),
+    expiresAt: entry?.expiresAt ?? null,
+  };
+}
+
 export async function requireAccessToken(server: ServerName): Promise<string> {
   const tok = await getAccessToken(server);
   if (!tok) throw new AuthRequiredError(server);
@@ -402,4 +432,27 @@ export function evaluateAuthHealth(entry?: AuthState["servers"][string]): AuthHe
     expiresAt,
     hasRefresh,
   };
+}
+
+interface TokenClaims {
+  sub?: string;
+  iss?: string;
+  iat?: number;
+  exp?: number;
+  [k: string]: unknown;
+}
+
+export function extractTokenClaims(accessToken?: string): TokenClaims | undefined {
+  if (!accessToken) return undefined;
+  const parts = accessToken.split(".");
+  if (parts.length < 2) return undefined;
+  try {
+    const payload = parts[1]!;
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(Math.ceil(normalized.length / 4) * 4, "=");
+    const decoded = Buffer.from(padded, "base64").toString("utf8");
+    return JSON.parse(decoded) as TokenClaims;
+  } catch {
+    return undefined;
+  }
 }

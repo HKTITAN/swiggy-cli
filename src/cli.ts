@@ -12,7 +12,7 @@ import { renderError, renderStartupBanner } from "./lib/output.js";
 import { CliError } from "./lib/errors.js";
 import { BRAND } from "./lib/output.js";
 
-const VERSION = "0.1.1";
+const VERSION = "0.1.2";
 
 const program = new Command();
 
