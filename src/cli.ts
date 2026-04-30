@@ -5,14 +5,16 @@ import { buildFoodCommands } from "./commands/food.js";
 import { buildInstamartCommands } from "./commands/instamart.js";
 import { buildDineoutCommands } from "./commands/dineout.js";
 import { buildAuthCommands } from "./commands/auth.js";
+import { runWhoami } from "./commands/auth.js";
 import { buildConfigCommands } from "./commands/config.js";
 import { buildProfileCommands } from "./commands/profile.js";
 import { buildDoctorCommand } from "./commands/doctor.js";
+import { attachOutputOptions, readGlobalOpts } from "./commands/common.js";
 import { renderError, renderStartupBanner } from "./lib/output.js";
-import { CliError } from "./lib/errors.js";
+import { CliError, UsageError } from "./lib/errors.js";
 import { BRAND } from "./lib/output.js";
 
-const VERSION = "0.1.2";
+const VERSION = "0.1.3";
 
 const program = new Command();
 
@@ -57,6 +59,31 @@ buildAuthCommands(program);
 buildConfigCommands(program);
 buildProfileCommands(program);
 buildDoctorCommand(program);
+
+attachOutputOptions(
+  program
+    .command("whoami")
+    .description("Show signed-in identity (alias for auth whoami)")
+    .option("--server <name>", "server: food|instamart|dineout (default: all)")
+    .action(async (o: { server?: string }) => {
+      await runWhoami(readGlobalOpts(program), o.server);
+    })
+);
+
+program.on("command:*", (operands) => {
+  const attempted = operands?.[0] ?? "";
+  const aliases: Record<string, string> = {
+    me: "swiggy whoami",
+    login: "swiggy auth init",
+    signin: "swiggy auth init",
+    logout: "swiggy auth logout",
+  };
+  const hint =
+    aliases[attempted] !== undefined
+      ? `Did you mean: ${aliases[attempted]}`
+      : "Run: swiggy --help to see available commands";
+  process.exitCode = renderError(new UsageError(`Unknown command "${attempted}". ${hint}`, hint), readGlobalOpts(program));
+});
 
 program.hook("preAction", (_thisCommand, actionCommand) => {
   const opts = actionCommand.optsWithGlobals();

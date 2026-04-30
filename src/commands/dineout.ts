@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { UsageError } from "../lib/errors.js";
 import { attachOutputOptions, callTool, parseJsonInput, readGlobalOpts } from "./common.js";
 
 export function buildDineoutCommands(program: Command): void {
@@ -42,6 +43,12 @@ export function buildDineoutCommands(program: Command): void {
       .option("--date <yyyy-mm-dd>", "booking date")
       .option("--guests <n>", "number of guests")
       .action(async (o: { restaurantId?: string; date?: string; guests?: string }) => {
+        if (!o.restaurantId) {
+          throw new UsageError("Missing required option --restaurant-id.", "Run: swiggy dineout search first");
+        }
+        if (o.guests && Number(o.guests) <= 0) {
+          throw new UsageError("Invalid --guests. It must be a positive number.");
+        }
         await callTool(
           "dineout",
           "get_available_slots",

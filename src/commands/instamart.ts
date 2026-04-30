@@ -1,5 +1,6 @@
 import { Command } from "commander";
-import { attachOutputOptions, callTool, parseJsonInput, readGlobalOpts } from "./common.js";
+import { UsageError } from "../lib/errors.js";
+import { attachOutputOptions, callTool, ensureAddressId, parseJsonInput, readGlobalOpts } from "./common.js";
 
 export function buildInstamartCommands(program: Command): void {
   const im = program.command("instamart").description("Swiggy Instamart: groceries, cart, checkout");
@@ -68,6 +69,12 @@ export function buildInstamartCommands(program: Command): void {
       .option("--quantity <n>", "quantity", "1")
       .option("--input <json>", "raw arguments JSON")
       .action(async (o: { productId?: string; quantity?: string; input?: string }) => {
+        if (!o.input && !o.productId) {
+          throw new UsageError("Missing required option --product-id.", "Provide --product-id or pass --input <json>");
+        }
+        if (!o.input && o.quantity && Number(o.quantity) <= 0) {
+          throw new UsageError("Invalid --quantity. It must be a positive number.");
+        }
         const args = o.input
           ? parseJsonInput(o.input)
           : strip({ product_id: o.productId, quantity: o.quantity ? Number(o.quantity) : undefined });
@@ -91,8 +98,12 @@ export function buildInstamartCommands(program: Command): void {
       .option("--address-id <id>", "delivery address id")
       .option("--input <json>", "raw arguments JSON")
       .action(async (o: { addressId?: string; input?: string }) => {
-        const args = o.input ? parseJsonInput(o.input) : strip({ address_id: o.addressId });
-        await callTool("instamart", "checkout", args, readGlobalOpts(im));
+        const opts = readGlobalOpts(im);
+        const addressId = o.input
+          ? undefined
+          : await ensureAddressId("instamart", opts, o.addressId, { requiredBy: "instamart checkout" });
+        const args = o.input ? parseJsonInput(o.input) : strip({ address_id: addressId });
+        await callTool("instamart", "checkout", args, opts);
       })
   );
 

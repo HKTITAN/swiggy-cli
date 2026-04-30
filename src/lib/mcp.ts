@@ -120,7 +120,7 @@ export class McpClient {
       {
         protocolVersion: PROTOCOL_VERSION,
         capabilities: { tools: {} },
-        clientInfo: { name: "swiggy-cli", version: "0.1.2" },
+        clientInfo: { name: "swiggy-cli", version: "0.1.3" },
       },
       false
     );

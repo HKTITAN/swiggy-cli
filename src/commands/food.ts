@@ -1,5 +1,6 @@
 import { Command } from "commander";
-import { attachOutputOptions, callTool, parseJsonInput, readGlobalOpts } from "./common.js";
+import { UsageError } from "../lib/errors.js";
+import { attachOutputOptions, callTool, ensureAddressId, parseJsonInput, readGlobalOpts } from "./common.js";
 
 export function buildFoodCommands(program: Command): void {
   const food = program.command("food").description("Swiggy Food: search, menus, cart, orders");
@@ -10,10 +11,18 @@ export function buildFoodCommands(program: Command): void {
       .description("Search restaurants by query, cuisine, or dish")
       .option("-q, --query <q>", "search query (e.g. 'biryani')")
       .option("-c, --city <city>", "city name")
+      .option("--address-id <id>", "delivery address id")
       .option("--lat <lat>", "latitude")
       .option("--lng <lng>", "longitude")
-      .action(async (o: { query?: string; city?: string; lat?: string; lng?: string }) => {
-        await callTool("food", "search_restaurants", stripUndefined(o), readGlobalOpts(food));
+      .action(async (o: { query?: string; city?: string; addressId?: string; lat?: string; lng?: string }) => {
+        const opts = readGlobalOpts(food);
+        const addressId = await ensureAddressId("food", opts, o.addressId, { requiredBy: "food search-restaurants" });
+        await callTool(
+          "food",
+          "search_restaurants",
+          stripUndefined({ query: o.query, city: o.city, address_id: addressId, lat: o.lat, lng: o.lng }),
+          opts
+        );
       })
   );
 
@@ -33,6 +42,9 @@ export function buildFoodCommands(program: Command): void {
       .description("Get a restaurant's menu")
       .option("--restaurant-id <id>", "restaurant id")
       .action(async (o: { restaurantId?: string }) => {
+        if (!o.restaurantId) {
+          throw new UsageError("Missing required option --restaurant-id.", "Run: swiggy food search-restaurants first");
+        }
         await callTool("food", "get_restaurant_menu", { restaurant_id: o.restaurantId }, readGlobalOpts(food));
       })
   );
@@ -64,6 +76,15 @@ export function buildFoodCommands(program: Command): void {
       .option("--quantity <n>", "quantity", "1")
       .option("--input <json>", "raw arguments JSON (overrides flags)")
       .action(async (o: { restaurantId?: string; itemId?: string; quantity?: string; input?: string }) => {
+        if (!o.input && (!o.restaurantId || !o.itemId)) {
+          throw new UsageError(
+            "Missing required options for add-to-cart.",
+            "Provide --restaurant-id and --item-id, or pass --input <json>"
+          );
+        }
+        if (!o.input && o.quantity && Number(o.quantity) <= 0) {
+          throw new UsageError("Invalid --quantity. It must be a positive number.");
+        }
         const args = o.input
           ? parseJsonInput(o.input)
           : stripUndefined({
@@ -109,8 +130,12 @@ export function buildFoodCommands(program: Command): void {
       .option("--address-id <id>", "delivery address id")
       .option("--input <json>", "raw arguments JSON")
       .action(async (o: { addressId?: string; input?: string }) => {
-        const args = o.input ? parseJsonInput(o.input) : stripUndefined({ address_id: o.addressId });
-        await callTool("food", "place_food_order", args, readGlobalOpts(food));
+        const opts = readGlobalOpts(food);
+        const addressId = o.input
+          ? undefined
+          : await ensureAddressId("food", opts, o.addressId, { requiredBy: "food checkout" });
+        const args = o.input ? parseJsonInput(o.input) : stripUndefined({ address_id: addressId });
+        await callTool("food", "place_food_order", args, opts);
       })
   );
 

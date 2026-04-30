@@ -1,5 +1,5 @@
 import { Command } from "commander";
-import { attachOutputOptions, readGlobalOpts } from "./common.js";
+import { attachOutputOptions, type ExecOpts, readGlobalOpts } from "./common.js";
 import { renderError, renderResult, startSpinner } from "../lib/output.js";
 import { interactiveAuthLoginV2, loadAuth, clearAuth, evaluateAuthHealth, extractTokenClaims } from "../lib/auth.js";
 import { SERVER_NAMES, type ServerName } from "../types/index.js";
@@ -97,33 +97,7 @@ export function buildAuthCommands(program: Command): void {
       .description("Show signed-in identity details inferred from stored token claims")
       .option("--server <name>", `server: ${SERVER_NAMES.join("|")} (default: all)`)
       .action(async (o: { server?: string }) => {
-        const opts = readGlobalOpts(auth);
-        try {
-          const targets = o.server ? [assertServer(o.server)] : SERVER_NAMES;
-          const state = await loadAuth();
-          const data = targets.map((s) => {
-            const entry = state.servers[s];
-            const claims = extractTokenClaims(entry?.accessToken);
-            const health = evaluateAuthHealth(entry);
-            return {
-              server: s,
-              authenticated: health.authenticated,
-              reason: health.reason,
-              subject: typeof claims?.sub === "string" ? claims.sub : null,
-              issuer: typeof claims?.iss === "string" ? claims.iss : null,
-              issuedAt: typeof claims?.iat === "number" ? new Date(claims.iat * 1000).toISOString() : null,
-              expiresAt:
-                typeof claims?.exp === "number"
-                  ? new Date(claims.exp * 1000).toISOString()
-                  : health.expiresAt
-                    ? new Date(health.expiresAt).toISOString()
-                    : null,
-            };
-          });
-          renderResult({ authFile: PATHS.authFile, servers: data }, opts);
-        } catch (err) {
-          process.exitCode = renderError(err, opts);
-        }
+        await runWhoami(readGlobalOpts(auth), o.server);
       })
   );
 
@@ -147,7 +121,7 @@ export function buildAuthCommands(program: Command): void {
 
 function assertServer(s: string): ServerName {
   if (!SERVER_NAMES.includes(s as ServerName)) {
-    throw new UsageError(`Unknown server "${s}". Valid: ${SERVER_NAMES.join(", ")}`);
+    throw new UsageError(`Unknown server "${s}". Valid: ${SERVER_NAMES.join(", ")}`, "Run: swiggy servers");
   }
   return s as ServerName;
 }
@@ -159,4 +133,33 @@ function parsePort(port?: string): number | undefined {
     throw new UsageError(`Invalid --port "${port}". Expected an integer between 1 and 65535.`);
   }
   return parsed;
+}
+
+export async function runWhoami(opts: ExecOpts, server?: string): Promise<void> {
+  try {
+    const targets = server ? [assertServer(server)] : SERVER_NAMES;
+    const state = await loadAuth();
+    const data = targets.map((s) => {
+      const entry = state.servers[s];
+      const claims = extractTokenClaims(entry?.accessToken);
+      const health = evaluateAuthHealth(entry);
+      return {
+        server: s,
+        authenticated: health.authenticated,
+        reason: health.reason,
+        subject: typeof claims?.sub === "string" ? claims.sub : null,
+        issuer: typeof claims?.iss === "string" ? claims.iss : null,
+        issuedAt: typeof claims?.iat === "number" ? new Date(claims.iat * 1000).toISOString() : null,
+        expiresAt:
+          typeof claims?.exp === "number"
+            ? new Date(claims.exp * 1000).toISOString()
+            : health.expiresAt
+              ? new Date(health.expiresAt).toISOString()
+              : null,
+      };
+    });
+    renderResult({ authFile: PATHS.authFile, servers: data }, opts);
+  } catch (err) {
+    process.exitCode = renderError(err, opts);
+  }
 }

@@ -1,6 +1,6 @@
 {
   "name": "swiggy-cli",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "Human- and agent-friendly CLI for the official Swiggy MCP servers (food, instamart, dineout).",
   "type": "module",
   "license": "MIT",
