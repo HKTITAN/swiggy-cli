@@ -15,7 +15,7 @@ Do not invent tool names or parameters. The bundled catalog in `src/lib/aliases.
 
 ## Using the CLI from an agent
 
-Always pass `--json --no-interactive`. Then:
+Always pass `--json --no-interactive`, and **never run bare `swiggy`**: with no arguments in a terminal it opens a full-screen app that waits for keypresses (set `SWIGGY_NO_SHELL=1` if a harness might do that). Then:
 
 1. Read `ok`. On `false`, branch on `error.code` (stable), never on `error.message`.
 2. Never add `--yes` on your own; exit 7 means ask the human first.

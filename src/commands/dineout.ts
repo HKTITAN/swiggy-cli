@@ -65,7 +65,7 @@ export function buildDineoutCommands(program: Command): void {
           );
           const out = await invokeTool("dineout", "search_restaurants_dineout", args, opts);
           await rememberDineoutCoords(out.data, out.extra, "search");
-          renderOutcome("dineout", "search_restaurants_dineout", out, opts);
+          await renderOutcome("dineout", "search_restaurants_dineout", out, opts);
         });
       })
   );
@@ -84,7 +84,7 @@ export function buildDineoutCommands(program: Command): void {
           const c = await resolveDineoutCoords(opts, o.lat, o.lng, "dineout details");
           const out = await invokeTool("dineout", "get_restaurant_details", { restaurantId, ...c }, opts);
           await rememberDineoutCoords(out.data, out.extra, "details");
-          renderOutcome("dineout", "get_restaurant_details", out, opts);
+          await renderOutcome("dineout", "get_restaurant_details", out, opts);
         });
       })
   );

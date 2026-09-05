@@ -5,8 +5,8 @@ import { isInteractive } from "./lib/tty.js";
 
 const program = buildProgram();
 
-// `swiggy` with no arguments in a terminal opens the interactive session; piped/CI usage prints help.
-const argv = process.argv.length <= 2 && isInteractive() && !process.env.SWIGGY_NO_SHELL ? [...process.argv, "shell"] : process.argv;
+// `swiggy` with no arguments in a terminal opens the full-screen app; piped/CI usage prints help.
+const argv = process.argv.length <= 2 && isInteractive() && !process.env.SWIGGY_NO_SHELL ? [...process.argv, "app"] : process.argv;
 
 program.parseAsync(argv).catch((err: unknown) => {
   const opts = program.opts();

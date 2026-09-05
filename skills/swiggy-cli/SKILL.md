@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires the swiggy-cli binary (npm i -g swiggy-cli), Node 20+, and a signed-in Swiggy account (swiggy auth init, browser + OTP).
 metadata:
   author: HKTITAN
-  version: "0.2.0"
+  version: "0.2.1"
   source: https://github.com/HKTITAN/swiggy-cli
 ---
 
@@ -19,7 +19,8 @@ metadata:
 2. **Read `ok`, then branch on `error.code`, never on `error.message`.** Codes are a stable contract; messages change upstream.
 3. **Never add `--yes` on your own.** `--yes` is the user's consent to a destructive tool (orders, bookings, cart flush, address delete). Exit code 7 means "ask the human, then re-run with `--yes`".
 4. **Never retry an order-placing command after an error.** `place_food_order`, `checkout`, `book_table` are not idempotent; a retry can double-order. Check `orders`/`status` first.
-5. **Resolve `addressId` before Food/Instamart calls** (`swiggy <server> addresses --json`) or set it once with `swiggy profile set default defaultAddressId <id>`. In machine mode the CLI refuses to guess an address (exit 2).
+5. **Never run bare `swiggy`, `swiggy app` or `swiggy shell`.** They open interactive sessions that wait for keypresses and never return. If a harness might run `swiggy` with no arguments, set `SWIGGY_NO_SHELL=1`.
+6. **Resolve `addressId` before Food/Instamart calls** (`swiggy <server> addresses --json`) or set it once with `swiggy profile set default defaultAddressId <id>`. In machine mode the CLI refuses to guess an address (exit 2).
 
 ## Envelope
 

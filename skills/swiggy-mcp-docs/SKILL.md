@@ -5,7 +5,7 @@ license: MIT
 compatibility: Needs outbound HTTPS to mcp.swiggy.com (WebFetch, curl, or the swiggy CLI).
 metadata:
   author: HKTITAN
-  version: "0.2.0"
+  version: "0.2.1"
   docs: https://mcp.swiggy.com/builders/docs/start/coding-agents/
 ---
 

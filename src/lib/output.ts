@@ -44,7 +44,7 @@ export function startSpinner(text: string, opts: OutputOptions): Status {
 }
 
 export function renderStartupBanner(opts: OutputOptions): void {
-  if (isMachineMode(opts) || opts.quiet || !process.stdout.isTTY || process.env.SWIGGY_NO_BANNER) return;
+  if (isMachineMode(opts) || opts.quiet || !process.stdout.isTTY || process.env.SWIGGY_NO_BANNER || process.env.SWIGGY_SHELL_ACTIVE) return;
   const header = [
     "███████╗██╗    ██╗██╗ ██████╗  ██████╗ ██╗   ██╗",
     "██╔════╝██║    ██║██║██╔════╝ ██╔════╝ ╚██╗ ██╔╝",

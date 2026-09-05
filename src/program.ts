@@ -8,6 +8,7 @@ import { buildConfigCommands } from "./commands/config.js";
 import { buildProfileCommands } from "./commands/profile.js";
 import { buildDoctorCommand } from "./commands/doctor.js";
 import { buildShellCommand } from "./commands/shell.js";
+import { buildAppCommand } from "./commands/tui.js";
 import { attachOutputOptions, readGlobalOpts } from "./commands/common.js";
 import { renderError, renderStartupBanner } from "./lib/output.js";
 import { UsageError } from "./lib/errors.js";
@@ -50,7 +51,8 @@ export function buildProgram(): Command {
         `  $ swiggy dineout search -q italian --address-id <id>\n` +
         `  $ swiggy call food search_restaurants --input '{"addressId":"<id>","query":"pizza"}' --json\n` +
         `  $ swiggy docs reference/food/search_menu             # official docs as Markdown\n` +
-        `  $ swiggy shell                                       # interactive session\n\n` +
+        `  $ swiggy app                                         # full-screen session (also: just plain ` + `swiggy` + `)\n` +
+        `  $ swiggy shell                                       # line-oriented session\n\n` +
         `Docs: ${DOCS.base}/docs/  ·  README.md  ·  ./wiki/  ·  AGENTS.md`
     );
 
@@ -63,6 +65,7 @@ export function buildProgram(): Command {
   buildProfileCommands(program);
   buildDoctorCommand(program);
   buildShellCommand(program, buildProgram);
+  buildAppCommand(program, buildProgram);
 
   attachOutputOptions(
     program

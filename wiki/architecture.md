@@ -32,14 +32,18 @@ Both layers share `invokeTool`, the client and the renderers. Layer A is sugar p
 
 | File | Responsibility |
 | --- | --- |
-| `src/cli.ts` | entry: builds the program; no-args in a TTY → `shell` |
-| `src/program.ts` | commander program factory (used by both the CLI and the shell) |
+| `src/cli.ts` | entry: builds the program; no-args in a TTY → `app` |
+| `src/program.ts` | commander program factory (used by the CLI, the shell and the app: one fresh program per command line) |
+| `src/tui/app.ts` | the full-screen session: raw-mode keypresses, alternate screen, synchronized frames, output pane, row selection from `recent.ts`, prompts + status rendered in place |
 | `src/commands/common.ts` | `attachOutputOptions`, `run`, `invokeTool`/`callTool`, `buildArgs`, address + coordinate resolution, error hints |
 | `src/commands/{food,instamart,dineout}.ts` | Layer A verbs with documented parameter names |
 | `src/commands/address.ts` | `addresses` / `create-address` / `delete-address` shared by Food and Instamart |
 | `src/commands/payments.ts` | `payment-options` / `payment-status --wait` / `confirm-order` / `report-error` per server, and `placeOrderWithPayment` |
 | `src/commands/generic.ts` | Layer B (`servers`, `tools`, `schema`, `call`) plus `docs` and `mcp-config` |
-| `src/commands/{auth,config,profile,doctor,shell}.ts` | management commands and the interactive session |
+| `src/commands/{auth,config,profile,doctor}.ts` | management commands |
+| `src/commands/shell.ts` · `tui.ts` | `runLine` (run one command line in-process; exit override + output capture across the whole command tree), the line REPL, and the `app` command |
+| `src/lib/prompter.ts` | the one interface for interactive questions (`select`, `confirm`); hosts install their own so stdin is never handed to a second reader |
+| `src/lib/recent.ts` | numbered rows of the last listings + carried context (`restaurantId`, `addressId`, coordinates); `getLastList()` feeds the app's selection |
 | `src/lib/mcp.ts` | Streamable-HTTP MCP client: sessions, SSE, status mapping, rate-limit headers, envelope helpers |
 | `src/lib/auth.ts` | OAuth 2.1 + PKCE, RFC 9728/8414 discovery, dynamic client registration, shared token, browser open |
 | `src/lib/payments.ts` | pure payment-flow logic: `--pay` parsing, pending detection, per-server args, status classification, `waitForPayment` |
@@ -57,6 +61,7 @@ Both layers share `invokeTool`, the client and the renderers. Layer A is sugar p
 2. **Documented names, discovered schemas.** Layer A uses the parameter names Swiggy publishes; Layer B pulls schemas live. `swiggy doctor` reports drift between the bundled catalog and `tools/list`.
 3. **Stable contracts.** Error codes, exit codes and the envelope are documented and only change with a major version.
 4. **Zero magic for agents.** No prompts, colours or spinners in machine mode (`--json`, `--plain`, `--raw`, `--no-interactive`, or a non-TTY stdout). stdout carries data only; everything else goes to stderr.
-5. **Least secret surface.** Tokens live in `~/.swiggy/auth.json` (0600), never in env or argv. No telemetry.
+5. **Sessions own the terminal.** Anything that reads stdin inside `shell`/`app` goes through `prompter.ts`; anything that shows progress goes through the status sink in `ui.ts`. A library that opened its own readline ended sessions in 0.2.0, so this is a rule, not a preference.
+6. **Least secret surface.** Tokens live in `~/.swiggy/auth.json` (0600), never in env or argv. No telemetry.
 6. **Rate-limit hygiene.** One MCP session per server persisted across invocations; the payment poll honours Swiggy's cadence; the shell keeps everything warm in one process.
 7. **Brand restraint.** Swiggy orange is used for the program name, headings and table headers — never for body data.

@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires swiggy-cli signed in. Booking a paid deal spends money via UPI.
 metadata:
   author: HKTITAN
-  version: "0.2.0"
+  version: "0.2.1"
 ---
 
 # swiggy-dineout-booking

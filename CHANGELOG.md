@@ -2,6 +2,25 @@
 
 All notable changes to `swiggy-cli` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.1] - 2026-09-05
+
+### Added
+- **`swiggy app`** (alias `ui`) — a full-screen session, now the default when `swiggy` runs with no arguments in a terminal. Alternate screen, synchronized (tear-free) frames, an output pane with the native views, ↑/↓ over the numbered rows of the last listing, Enter to do the obvious next thing (restaurant → menu, dish/product → add 1, Dineout restaurant → slots, slot → prepared `book` line, order → details, address → set default), inline y/n confirmations, live output while a command runs, tab completion (shared prefix, then candidates), history, `c`/`o`/`a` shortcuts, PgUp/PgDn scrolling.
+- `src/lib/prompter.ts` — one interface for interactive prompts (address picker, confirmations). Plain runs use the `prompts` library; `shell` answers on its own readline; the app answers in its status line / pane.
+- A status sink in `src/lib/ui.ts` so a host can render progress itself.
+- `getLastList()` in `src/lib/recent.ts` (the last listing with its kind and server) and `last` in `recent.json`.
+- End-to-end tests that drive the app and the shell through fake terminals against the mock MCP server (`test/app.test.ts`, `test/shell.test.ts`, `test/helpers/fake-tty.ts`).
+
+### Fixed
+- **`swiggy shell` ended after the first command** whenever that command asked a question (typically the address picker): the `prompts` library opened a second readline on stdin, reset raw mode and closed it, leaving nothing to keep the process alive. Sessions now own every prompt and never hand stdin to another reader.
+- The startup banner printed once per command inside a session (`SWIGGY_SHELL_ACTIVE` is now set by the session).
+- `food nonsense` / `food menu --help` inside a session exited the process: commander's exit override is now applied to every subcommand.
+- Numbered rows were written to `recent.json` without being awaited, so a command run immediately after a listing (only possible inside a session) could miss them.
+
+### Changed
+- An address picked interactively is carried to the following commands (`recent.json` context) until a default is set or `--address-id` is passed — a session without a default address asks once, not per command.
+- Tab completion in `shell` and the app fills the shared prefix when several commands match.
+
 ## [0.2.0] - 2026-09-05
 
 Catches up with everything Swiggy shipped on MCP between April and September 2026 (verified against <https://mcp.swiggy.com/builders/docs/> on 2026-09-05) and makes the CLI pleasant for humans and reliable for agents.

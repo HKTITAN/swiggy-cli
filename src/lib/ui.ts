@@ -90,6 +90,17 @@ const noop: Status = {
 let activeCount = 0;
 let sigintInstalled = false;
 
+/** A host (the full-screen app) can take over status rendering; the CLI then writes nothing to the terminal. */
+export interface StatusSink {
+  start(text: string): void;
+  update(text: string): void;
+  done(kind: "ok" | "fail" | "stop", text: string | undefined, elapsedMs: number): void;
+}
+let sink: StatusSink | undefined;
+export function setStatusSink(s: StatusSink | undefined): void {
+  sink = s;
+}
+
 function installSigint(): void {
   if (sigintInstalled) return;
   sigintInstalled = true;
@@ -102,6 +113,36 @@ function installSigint(): void {
 
 /** Start a status line. Returns a no-op in machine/quiet mode so call sites never branch. */
 export function startStatus(text: string, opts: OutputOptions): Status {
+  if (sink) {
+    const s = sink;
+    const start = Date.now();
+    let current = text;
+    let stopped = false;
+    s.start(text);
+    const finish = (kind: "ok" | "fail" | "stop", t?: string) => {
+      if (stopped) return;
+      stopped = true;
+      s.done(kind, t ?? current, Date.now() - start);
+    };
+    return {
+      update(t: string) {
+        current = t;
+        s.update(t);
+      },
+      succeed(t?: string) {
+        finish("ok", t);
+      },
+      fail(t?: string) {
+        finish("fail", t);
+      },
+      stop() {
+        finish("stop");
+      },
+      get elapsedMs() {
+        return Date.now() - start;
+      },
+    };
+  }
   if (isMachineMode(opts) || opts.quiet || !process.stderr.isTTY) return noop;
   installSigint();
   const start = Date.now();

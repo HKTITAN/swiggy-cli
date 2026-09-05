@@ -101,7 +101,7 @@ export function buildInstamartCommands(program: Command): void {
           }
           const cleaned = items.map((it) => Object.fromEntries(Object.entries(it).filter(([, v]) => v !== undefined)));
           const out = await invokeTool("instamart", "update_cart", { selectedAddressId, items: cleaned }, opts);
-          renderOutcome("instamart", "update_cart", out, opts);
+          await renderOutcome("instamart", "update_cart", out, opts);
         });
       })
   );

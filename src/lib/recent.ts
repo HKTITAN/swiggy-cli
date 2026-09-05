@@ -36,6 +36,8 @@ export interface RecentContext {
 interface RecentFile {
   lists: Partial<Record<RecentKind, { entries: RecentEntry[]; savedAt: number; server: ServerName }>>;
   context: RecentContext;
+  /** The kind of the most recent non-empty listing (what a bare row number refers to in the app). */
+  last?: RecentKind;
 }
 
 const FILE = join(PATHS.cacheDir, "recent.json");
@@ -44,7 +46,7 @@ async function load(): Promise<RecentFile> {
   if (!existsSync(FILE)) return { lists: {}, context: {} };
   try {
     const parsed = JSON.parse(await readFile(FILE, "utf8")) as Partial<RecentFile>;
-    return { lists: parsed.lists ?? {}, context: parsed.context ?? {} };
+    return { lists: parsed.lists ?? {}, context: parsed.context ?? {}, last: parsed.last };
   } catch {
     return { lists: {}, context: {} };
   }
@@ -62,7 +64,10 @@ async function save(f: RecentFile): Promise<void> {
 export async function remember(kind: RecentKind, server: ServerName, entries: RecentEntry[], context: RecentContext = {}): Promise<void> {
   if (entries.length === 0 && Object.keys(context).length === 0) return;
   const f = await load();
-  if (entries.length) f.lists[kind] = { entries: entries.slice(0, 200), savedAt: Date.now(), server };
+  if (entries.length) {
+    f.lists[kind] = { entries: entries.slice(0, 200), savedAt: Date.now(), server };
+    f.last = kind;
+  }
   f.context = { ...f.context, ...compactCtx(context) };
   await save(f);
 }
@@ -77,6 +82,14 @@ export async function getContext(): Promise<RecentContext> {
 
 export async function getRecent(kind: RecentKind): Promise<RecentEntry[]> {
   return (await load()).lists[kind]?.entries ?? [];
+}
+
+/** The most recent listing with its kind and server (undefined when nothing has been listed yet). */
+export async function getLastList(): Promise<{ kind: RecentKind; server: ServerName; entries: RecentEntry[]; savedAt: number } | undefined> {
+  const f = await load();
+  if (!f.last) return undefined;
+  const l = f.lists[f.last];
+  return l ? { kind: f.last, server: l.server, entries: l.entries, savedAt: l.savedAt } : undefined;
 }
 
 /** Parse "#3" / "3" into a 1-based index; anything else is not a reference. */

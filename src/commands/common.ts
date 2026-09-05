@@ -10,10 +10,10 @@ import { CliError, UsageError } from "../lib/errors.js";
 import { confirm } from "../lib/confirm.js";
 import { DESTRUCTIVE_TOOLS } from "../lib/aliases.js";
 import { isMachineMode } from "../lib/tty.js";
-import { loadPrompts } from "../lib/lazy.js";
+import { getPrompter } from "../lib/prompter.js";
 import { PATHS } from "../lib/paths.js";
 import { labelFor, messageLine, viewFor } from "../lib/views.js";
-import { extractRecent, remember } from "../lib/recent.js";
+import { extractRecent, remember, getContext, getRecent } from "../lib/recent.js";
 
 export function attachOutputOptions(cmd: Command): Command {
   return cmd
@@ -119,7 +119,7 @@ export async function callTool(
 ): Promise<ToolOutcome | undefined> {
   try {
     const out = await invokeTool(server, tool, args, opts, label);
-    renderOutcome(server, tool, out, opts, humanRenderer);
+    await renderOutcome(server, tool, out, opts, humanRenderer);
     return out;
   } catch (err) {
     process.exitCode = renderError(err, { ...opts, server, tool });
@@ -127,19 +127,20 @@ export async function callTool(
   }
 }
 
-export function renderOutcome(
+export async function renderOutcome(
   server: ServerName,
   tool: string,
   out: ToolOutcome,
   opts: ExecOpts,
   humanRenderer?: (data: unknown, ctx: RenderContext) => void,
   extraMeta: EnvelopeMeta = {}
-): void {
+): Promise<void> {
   const ctx: RenderContext = { ...opts, server, tool, profile: opts.profile || out.profileName, meta: { ...out.meta, ...extraMeta } };
   const data = opts.raw ? out.raw : out.extra ? { ...out.extra, ...(isRecord(out.data) ? out.data : { data: out.data }) } : out.data;
-  // Remember numbered rows + follow-up context so the next command can say "#2" (best-effort, never blocks).
+  // Remember numbered rows + follow-up context so the next command can say "#2". Awaited (a few ms): inside
+  // a warm session the next command may run immediately and must see the rows.
   const recent = extractRecent(server, tool, out.data, out.extra);
-  if (recent) void remember(recent.kind, server, recent.entries, recent.context);
+  if (recent) await remember(recent.kind, server, recent.entries, recent.context);
   const native = !opts.json && !opts.plain && !opts.raw && !humanRenderer ? viewFor(server, tool) : undefined;
   if (native) {
     const text = native(out.data, { ...ctx, message: out.message });
@@ -268,6 +269,13 @@ export async function ensureAddressId(
   if (current) return current;
   const { profile } = await getCurrentProfile(opts.profile);
   if (profile.defaultAddressId) return profile.defaultAddressId;
+  // An address picked (or used) earlier carries over, so a session without a default asks once, not per command.
+  const carried = (await getContext()).addressId;
+  if (carried) {
+    const label = (await getRecent("addresses")).find((a) => a.id === carried)?.label;
+    note(dim(`address: ${label ? `${label} (${carried})` : carried} · from your last command; change with --address-id or  swiggy profile set default defaultAddressId <id>`, opts), opts);
+    return carried;
+  }
   if (isMachineMode(opts)) {
     throw new UsageError(
       `Missing address id for ${requiredBy}. Run: swiggy ${server} addresses --json, then retry with --address-id <id>.`,
@@ -280,16 +288,11 @@ export async function ensureAddressId(
     throw new UsageError(`No saved addresses found for ${server}.`, `Create one: swiggy ${server} create-address --help`);
   }
   if (addresses.length === 1) return addresses[0]!.id;
-  const prompts = loadPrompts();
-  const response = await prompts({
-    type: "select",
-    name: "addressId",
-    message: `Delivery address for ${requiredBy}:`,
-    choices: addresses.map((a) => ({ title: a.label, value: a.id })),
-  });
-  if (!response.addressId) throw new UsageError("Address selection cancelled.", "Re-run with --address-id <id> for non-interactive use.");
-  note(dim(`tip: make this the default with  swiggy profile set default defaultAddressId ${response.addressId}`, opts), opts);
-  return response.addressId as string;
+  const picked = await getPrompter().select(`Delivery address for ${requiredBy}:`, addresses.map((a) => ({ title: a.label, value: a.id })));
+  if (!picked) throw new UsageError("Address selection cancelled.", "Re-run with --address-id <id> for non-interactive use.");
+  await remember("addresses", server, [], { addressId: picked });
+  note(dim(`tip: make this the default with  swiggy profile set default defaultAddressId ${picked}`, opts), opts);
+  return picked;
 }
 
 export interface Coords {

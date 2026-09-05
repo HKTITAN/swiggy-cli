@@ -1,6 +1,6 @@
 # Commands
 
-Every command accepts the global flags: `--json`, `--plain`, `--raw`, `--quiet`, `--no-interactive`, `-y/--yes`, `--profile <name>`. Most Food/Instamart verbs take `--address-id <id>`; omit it when the profile has `defaultAddressId` (interactive runs offer a picker). Most verbs accept `--input <json>` to merge any documented parameter over the flags.
+Every command accepts the global flags: `--json`, `--plain`, `--raw`, `--quiet`, `--no-interactive`, `-y/--yes`, `--profile <name>`. Most Food/Instamart verbs take `--address-id <id>`; omit it when the profile has `defaultAddressId` (interactive runs offer a picker, and the picked address is carried to the following commands until a default is set). Most verbs accept `--input <json>` to merge any documented parameter over the flags.
 
 ⚠ = destructive (`DESTRUCTIVE_TOOLS`): confirmation prompt, or `--yes` in machine mode (exit 7 otherwise).
 
@@ -17,7 +17,8 @@ Every command accepts the global flags: `--json`, `--plain`, `--raw`, `--quiet`,
 | `swiggy docs [path] [--full]` | Swiggy docs as Markdown: index (`llms.txt`), a page (`reference/food/search_menu`), or everything |
 | `swiggy mcp-config [--client …] [--servers …]` | MCP client config for claude / claude-code / cursor / vscode / windsurf / codex / plugin / generic |
 | `swiggy doctor [--offline]` | runtime, config, auth, OAuth metadata, live tools, catalog drift, docs reachability |
-| `swiggy shell` (alias `repl`) | interactive session; default when `swiggy` runs with no args in a terminal |
+| `swiggy app` (alias `ui`) | full-screen session: ↑/↓ over the last listing's rows, Enter drills in, inline confirmations, live output; default when `swiggy` runs with no args in a terminal |
+| `swiggy shell` (alias `repl`) | the same session as a line-oriented REPL (tab completion, history, one warm MCP session) |
 
 `<server>` accepts `food`, `instamart` (or `im`), `dineout`.
 
@@ -100,6 +101,7 @@ Every command accepts the global flags: `--json`, `--plain`, `--raw`, `--quiet`,
 | `SWIGGY_FOOD_URL` / `SWIGGY_INSTAMART_URL` / `SWIGGY_DINEOUT_URL` | endpoint overrides |
 | `SWIGGY_OAUTH_CLIENT_ID` / `SWIGGY_OAUTH_CLIENT_SECRET` | pre-registered OAuth client (optional; dynamic registration is the default) |
 | `SWIGGY_NO_BROWSER` | never auto-open the browser |
-| `SWIGGY_NO_BANNER` / `SWIGGY_NO_SHELL` | disable the banner / the no-args shell |
+| `SWIGGY_NO_BANNER` / `SWIGGY_NO_SHELL` | disable the banner / the no-args app |
+| `SWIGGY_SHELL_ACTIVE` | set by `app`/`shell` for the commands they run (no banner); not meant to be set by hand |
 | `NO_COLOR` / `FORCE_COLOR` | colour control |
 | `CI=true` | forces machine mode |

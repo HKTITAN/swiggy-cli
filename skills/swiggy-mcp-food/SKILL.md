@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires the Swiggy Food MCP server connected and the user signed in.
 metadata:
   author: HKTITAN
-  version: "0.2.0"
+  version: "0.2.1"
   reference: https://mcp.swiggy.com/builders/docs/reference/food/
 ---
 

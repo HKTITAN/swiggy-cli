@@ -73,7 +73,7 @@ export async function placeOrderWithPayment(
       const placed = await invokeTool(server, tool, args, opts, describeOrder(server, choice));
       const pending = toPendingPayment(placed.data, fallback);
       if (!pending) {
-        renderOutcome(server, tool, placed, opts, undefined, { payment: { pending: false } });
+        await renderOutcome(server, tool, placed, opts, undefined, { payment: { pending: false } });
         return;
       }
       const payUrl = pending.bridgeUrl ?? pending.upiIntentUrl;
@@ -87,16 +87,16 @@ export async function placeOrderWithPayment(
           note(`  ${link(payUrl, undefined, opts)}`, opts);
           note(dim(`then: ${next}`, opts), opts);
         }
-        renderOutcome(server, tool, placed, opts, undefined, { payment: { pending: true, bridgeUrl: payUrl, next } });
+        await renderOutcome(server, tool, placed, opts, undefined, { payment: { pending: true, bridgeUrl: payUrl, next } });
         return;
       }
       const outcome = await drivePayment(server, pending, opts, flags, payUrl);
       const meta: EnvelopeMeta = { payment: { pending: false, ...outcome } };
       if (outcome.outcome !== "confirmed") {
-        renderOutcome(server, tool, placed, opts, undefined, meta);
+        await renderOutcome(server, tool, placed, opts, undefined, meta);
         throw paymentOutcomeError(outcome, server);
       }
-      renderOutcome(server, tool, { ...placed, data: mergeConfirmed(placed.data, outcome) }, opts, undefined, meta);
+      await renderOutcome(server, tool, { ...placed, data: mergeConfirmed(placed.data, outcome) }, opts, undefined, meta);
     },
     { server, tool }
   );
@@ -146,7 +146,7 @@ export function attachPaymentCommands(server: ServerName, parent: Command): void
         const opts = readGlobalOpts(parent);
         await run(opts, async () => {
           const out = await invokeTool(server, "get_payment_options", server === "food" ? compactArgs({ addressId: o.addressId }) : {}, opts);
-          renderOutcome(server, "get_payment_options", out, opts, (data, ctx) => renderPaymentOptions(server, data, ctx));
+          await renderOutcome(server, "get_payment_options", out, opts, (data, ctx) => renderPaymentOptions(server, data, ctx));
         });
       })
   );
@@ -185,7 +185,7 @@ export function attachPaymentCommands(server: ServerName, parent: Command): void
             }
             if (!o.wait) {
               const out = await invokeTool(server, "check_payment_status", paymentStatusArgs(server, pending), opts);
-              renderOutcome(server, "check_payment_status", out, opts);
+              await renderOutcome(server, "check_payment_status", out, opts);
               return;
             }
             const outcome = await drivePayment(server, pending, opts, { wait: true, intervalMs: o.intervalMs, maxWaitMs: o.maxWaitMs });
@@ -229,7 +229,7 @@ export function attachPaymentCommands(server: ServerName, parent: Command): void
           }
           if (server !== "food" && !o.input) requireFlag(o.paasId, "--paas-id", "Instamart/Dineout confirm_order needs orderId + paasId");
           const out = await invokeTool(server, "confirm_order", args, opts);
-          renderOutcome(server, "confirm_order", out, opts);
+          await renderOutcome(server, "confirm_order", out, opts);
         });
       })
   );
@@ -252,7 +252,7 @@ export function attachPaymentCommands(server: ServerName, parent: Command): void
           );
           if (o.context) args.toolContext = await buildArgs({}, o.context);
           const out = await invokeTool(server, "report_error", args, opts);
-          renderOutcome(server, "report_error", out, opts);
+          await renderOutcome(server, "report_error", out, opts);
         });
       })
   );

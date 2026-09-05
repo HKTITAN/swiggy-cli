@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "swiggy-cli",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Swiggy for AI agents: skills for the official Swiggy MCP servers (Food, Instamart, Dineout — 51 tools, UPI/Swiggy Money payments) and for the swiggy-cli wrapper, plus the three MCP server connections.",
   "author": {
     "name": "Harshit Khemani",

@@ -48,7 +48,17 @@ Or pass `--lat/--lng`, or set `defaultLat`/`defaultLng` on the profile.
 
 ## `RATE_LIMITED` / exit 9
 
-You exceeded 70 req/min (30/min for writes) on one server, or re-initialized too often. Wait `error.details.retryAfterSeconds`. Use `swiggy shell` for bursts of commands, and do not run several `swiggy` processes in parallel against one server.
+You exceeded 70 req/min (30/min for writes) on one server, or re-initialized too often. Wait `error.details.retryAfterSeconds`. Use `swiggy` (the app) or `swiggy shell` for bursts of commands, and do not run several `swiggy` processes in parallel against one server.
+
+## The session ended after one command (0.2.0)
+
+Fixed in 0.2.1. The address picker came from a library that opened its own readline on stdin and closed it afterwards, which ended the session. Upgrade: `npm install -g swiggy-cli@latest`.
+
+## The app looks wrong or does not start
+
+- It needs a real terminal (raw mode + alternate screen). Inside CI, pipes, or some IDE consoles it refuses to start (exit 2): use `swiggy shell` or plain commands.
+- Garbled frames usually mean the terminal ignores synchronized output; resize the window once, or use `swiggy shell`.
+- Keys typed while a command is running go to the command line; the status line shows the spinner. Ctrl+C always quits.
 
 ## Tool not found (exit 4)
 
