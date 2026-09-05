@@ -1,41 +1,62 @@
 ---
 name: swiggy-checkout
-description: Place a Swiggy food or Instamart order via swiggy-cli, with the right safety rails. Use only when the human has explicitly asked to checkout — not as a continuation of "add to cart".
+description: Place a Swiggy Food or Instamart order with swiggy-cli, choosing Cash, UPI or Swiggy Money and getting explicit consent first. Use only when the user has said to place/confirm the order — never as an automatic continuation of adding to cart.
+license: MIT
+compatibility: Requires swiggy-cli signed in. Places real orders that cost real money.
+metadata:
+  author: HKTITAN
+  version: "0.2.0"
 ---
 
 # swiggy-checkout
 
-Checkout places **real, COD-only orders** that **cannot be cancelled** through the MCP API. Treat every invocation as irreversible.
+`checkout` calls `place_food_order` / `checkout` upstream. Orders cannot be cancelled through the API (Swiggy customer care: 080-67466729), so this skill is strict about consent.
 
-## Mandatory pre-flight
+## Pre-flight (all three, every time)
 
-1. Read the cart. Show the human the items, quantities, and total:
-   ```bash
-   swiggy food cart --json --no-interactive
-   ```
-2. Confirm the delivery address with the user. List options:
-   ```bash
-   swiggy food addresses --json --no-interactive
-   ```
-3. Repeat back the order summary in plain English and ask for explicit "yes, place the order" confirmation. Do **not** infer consent from a generic "go ahead".
+1. `swiggy <server> cart --json --no-interactive` — read the live cart. Show items, quantities and the payable total.
+2. Confirm the delivery address by text (`swiggy <server> addresses --json` → `addressLine`). "Delivering to: <addressLine>."
+3. Ask one direct question: "Place this order for ₹<total> to <address>, paying by <method>?" Wait for an explicit yes. "Go ahead" after a search is not consent to spend money; "yes, place it" is.
+
+## Payment decision
+
+```
+Did the user name a method?
+├── "cash" / "COD"                        → --pay cash
+├── "UPI" / "GPay" / "PhonePe" / "Paytm"  → is a specific app id in payment-options?
+│      ├── yes                            → --pay upi:<id copied exactly>
+│      └── no / desktop / unknown device  → --pay upi          (scan-or-tap link works everywhere)
+├── "Swiggy Money" / "wallet"             → run payment-options; use --pay swiggypay ONLY if the server lists it
+└── nothing                               → run payment-options and show the list; do not pick for them
+```
+
+`swiggy <server> payment-options --json` is the source of truth: offer only methods it returns. Never ask the user for a UPI ID/VPA (not supported, NPCI rule).
 
 ## Run
 
 ```bash
-swiggy food checkout --address-id <id> --yes --json --no-interactive
-# Instamart equivalent:
-swiggy instamart checkout --address-id <id> --yes --json --no-interactive
+# Cash: order is placed immediately, no payment leg
+swiggy food checkout --pay cash --yes --json --no-interactive
+swiggy instamart checkout --pay cash --yes --json --no-interactive
+
+# UPI: one command that places, shares the pay link, polls and confirms (blocks up to Swiggy's cap, ~5 min)
+swiggy food checkout --pay upi --wait --yes --json --no-interactive
+# UPI in two steps (agent hands the link over, resumes later) — see swiggy-pay
+swiggy food checkout --pay upi --yes --json --no-interactive
 ```
 
-`--yes` is required because the underlying tools (`place_food_order`, `checkout`) are flagged destructive. Without it the CLI exits `7` (`CONFIRMATION_REQUIRED`).
+`--note "<text>"` (Food only) sends a note to the restaurant, e.g. "less spicy". It is not for delivery instructions.
 
-## After
+## Read the result
 
-- On `ok: true`, save the returned order id and `swiggy food track <id> --json` (or `swiggy instamart track <id> --json`) to follow status.
-- On `MCP_ERROR` (exit 6), do **not** retry. Surface the upstream error to the human.
+- `meta.payment.pending === false` and `data.status` `CONFIRMED`/`PLACED` → placed. Quote `meta.message` verbatim (it carries Swiggy branding) and save `data.orderId`.
+- `meta.payment.pending === true` → **not placed yet.** Say "Complete the payment in your UPI app, I'll confirm once it succeeds", give `meta.payment.bridgeUrl`, then follow `swiggy-pay` using `meta.payment.next`.
+- exit 10 `PAYMENT_FAILED` → read `error.hint`; do not call checkout again blindly.
+- exit 6 `MCP_ERROR` → surface `error.message`; then run `swiggy <server> orders --active --json` before any retry, because a 5xx may have placed the order anyway.
 
-## Forbidden
+## Never
 
-- Calling checkout right after `add-to-cart` without a human-confirmation turn.
-- Calling checkout in a loop or with backoff.
-- Substituting another address than the one the human selected, even if the named one is missing.
+- Add `--yes` without the question in Pre-flight step 3 being answered "yes" in this conversation.
+- Call checkout twice for the same cart.
+- Announce success on a `PENDING_PAYMENT` response.
+- Substitute another address if the one the user named is missing; ask.

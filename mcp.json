@@ -1,0 +1,17 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "swiggy-food": {
+      "type": "streamable-http",
+      "url": "https://mcp.swiggy.com/food"
+    },
+    "swiggy-instamart": {
+      "type": "streamable-http",
+      "url": "https://mcp.swiggy.com/im"
+    },
+    "swiggy-dineout": {
+      "type": "streamable-http",
+      "url": "https://mcp.swiggy.com/dineout"
+    }
+  }
+}

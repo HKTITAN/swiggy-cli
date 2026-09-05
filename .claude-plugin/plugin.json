@@ -1,0 +1,16 @@
+{
+  "name": "swiggy",
+  "version": "0.2.0",
+  "description": "Swiggy for Claude Code: skills for the official Swiggy MCP servers (Food, Instamart, Dineout) and the swiggy-cli, with the three MCP servers pre-wired. Order food, groceries and tables, and pay with UPI or Swiggy Money, from an agent.",
+  "author": {
+    "name": "Harshit Khemani",
+    "email": "harshitkhemani@gmail.com",
+    "url": "https://github.com/HKTITAN"
+  },
+  "homepage": "https://github.com/HKTITAN/swiggy-cli",
+  "repository": "https://github.com/HKTITAN/swiggy-cli",
+  "license": "MIT",
+  "keywords": ["swiggy", "mcp", "food", "instamart", "dineout", "upi", "india"],
+  "skills": "./skills",
+  "mcpServers": "./.mcp.json"
+}
