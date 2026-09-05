@@ -8,12 +8,16 @@ on:
 
 jobs:
   test:
-    name: test (node ${{ matrix.node }})
-    runs-on: ubuntu-latest
+    name: test (node ${{ matrix.node }}, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [20, 22, 24]
+        os: [ubuntu-latest]
+        include:
+          - node: 22
+            os: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -23,7 +27,7 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
-      - run: npm run build
+      - run: npm run validate:skills
       - run: npm pack --dry-run
 
   smoke-cli:
@@ -34,10 +38,16 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
       - run: npm ci
       - run: npm run build
       - run: node dist/cli.js --version
       - run: node dist/cli.js --help
       - run: node dist/cli.js servers --json
+      - run: node dist/cli.js tools food --offline --json
+      - run: node dist/cli.js mcp-config --client plugin --json
+      - name: doctor (offline)
+        run: node dist/cli.js doctor --offline --json
+      - name: docs index reachable
+        run: node dist/cli.js docs --json | head -c 300

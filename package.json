@@ -1,10 +1,10 @@
 {
   "name": "swiggy-cli",
-  "version": "0.1.4",
-  "description": "Human- and agent-friendly CLI for the official Swiggy MCP servers (food, instamart, dineout).",
+  "version": "0.2.0",
+  "description": "Human- and agent-friendly CLI for the official Swiggy MCP servers (Food, Instamart, Dineout): 51 tools, UPI/Swiggy Money payments, stable JSON envelope, bundled agent skills and plugin manifests.",
   "type": "module",
   "license": "MIT",
-  "author": "swiggy-cli contributors",
+  "author": "Harshit Khemani <harshitkhemani@gmail.com> (https://github.com/HKTITAN)",
   "homepage": "https://github.com/HKTITAN/swiggy-cli",
   "repository": {
     "type": "git",
@@ -20,12 +20,15 @@
     "food",
     "instamart",
     "dineout",
+    "upi",
+    "payments",
     "agent",
     "ai",
     "anthropic",
     "claude",
     "skills",
     "skills.sh",
+    "agent-plugins",
     "model-context-protocol"
   ],
   "bin": {
@@ -39,6 +42,11 @@
     "CHANGELOG.md",
     "wiki",
     "skills",
+    "plugin.json",
+    "mcp.json",
+    ".mcp.json",
+    ".claude-plugin",
+    "assets",
     "LICENSE"
   ],
   "engines": {
@@ -49,26 +57,26 @@
     "dev": "tsx src/cli.ts",
     "start": "node dist/cli.js",
     "lint": "tsc --noEmit",
+    "pretest": "npm run build",
     "test": "vitest run",
     "test:watch": "vitest",
-    "prepublishOnly": "npm run build",
+    "validate:skills": "node scripts/validate-skills.mjs",
+    "prepublishOnly": "npm run lint && npm run build",
     "pack:check": "npm pack --dry-run"
   },
   "dependencies": {
-    "chalk": "^5.3.0",
     "cli-table3": "^0.6.5",
-    "commander": "^12.1.0",
-    "ora": "^8.1.1",
-    "prompts": "^2.4.2",
-    "zod": "^3.23.8"
+    "commander": "^15.0.0",
+    "prompts": "^2.4.2"
   },
   "devDependencies": {
-    "@types/node": "^20.14.10",
+    "@types/node": "^26.4.1",
     "@types/prompts": "^2.4.9",
     "tsup": "^8.3.5",
-    "tsx": "^4.19.2",
-    "typescript": "^5.6.3",
-    "vitest": "^2.1.4"
+    "tsx": "^4.23.13",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.2",
+    "vitest": "^5.0.0"
   },
   "publishConfig": {
     "access": "public",
