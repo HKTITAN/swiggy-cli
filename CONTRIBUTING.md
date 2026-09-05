@@ -1,6 +1,6 @@
 # Contributing to swiggy-cli
 
-Thanks for considering a contribution! This is a community CLI for the official [Swiggy MCP servers](https://github.com/Swiggy/swiggy-mcp-server-manifest); upstream behavior changes belong on their tracker, but anything about how this CLI wraps them belongs here.
+Thanks for considering a contribution! This is a community CLI for the official [Swiggy MCP servers](https://mcp.swiggy.com/builders/); upstream behaviour changes belong with Swiggy (builders@swiggy.in / the [manifest repo](https://github.com/Swiggy/swiggy-mcp-server-manifest)), but anything about how this CLI wraps them belongs here.
 
 ## Quick start
 
@@ -8,59 +8,66 @@ Thanks for considering a contribution! This is a community CLI for the official 
 git clone https://github.com/HKTITAN/swiggy-cli.git
 cd swiggy-cli
 npm ci
-npm run dev -- --help     # tsx-powered watcher equivalent
-npm test                  # vitest
-npm run lint              # tsc --noEmit
-npm run build             # tsup → dist/
-node dist/cli.js --help   # smoke-test the built binary
+npm run dev -- --help          # run from source via tsx
+npm run lint                   # tsc --noEmit
+npm test                       # builds dist/ then runs vitest (unit + mock MCP server + built-binary tests)
+npm run validate:skills        # Agent Skills + plugin manifest checks
+node dist/cli.js doctor        # smoke-test the built binary
 ```
 
 ## Project layout
 
-See [`wiki/architecture.md`](./wiki/architecture.md). One-line summary: `src/cli.ts` is the commander entry, every command lives under `src/commands/`, and every command compiles down to a single `McpClient.callTool()` invocation defined in `src/lib/mcp.ts`.
+See [`wiki/architecture.md`](./wiki/architecture.md). One-line summary: `src/program.ts` builds the commander program, every verb lives under `src/commands/`, and every verb ends in `invokeTool()` → `McpClient.callTool()` (`src/lib/mcp.ts`).
 
 ## Adding an ergonomic command
 
-The Swiggy MCP servers expose 35 tools today. Any new tool can be invoked through `swiggy call <server> <tool>` immediately. To add a friendly alias on top:
+The Swiggy MCP servers expose 51 tools today; any tool is reachable via `swiggy call <server> <tool>` immediately. To add a friendly verb:
 
-1. Append the tool name to `TOOL_CATALOG[<server>]` in [`src/lib/aliases.ts`](./src/lib/aliases.ts).
-2. Append `<verb>: <tool_name>` to `ERGONOMIC_ALIASES[<server>]`.
-3. Add a `attachOutputOptions(<server>.command(...))` block in [`src/commands/<server>.ts`](./src/commands).
-4. If the tool mutates state in a hard-to-reverse way, add it to `DESTRUCTIVE_TOOLS`.
-5. Add a row to [`wiki/commands.md`](./wiki/commands.md).
-6. Update tests in [`test/smoke.test.ts`](./test/smoke.test.ts) — alias-integrity assertions catch typos.
-
-Full guide: [`wiki/extending.md`](./wiki/extending.md).
+1. Look the tool up: `swiggy docs reference/<server>/<tool>` — copy the parameter names exactly (camelCase upstream).
+2. Add it to `TOOL_CATALOG` and `ERGONOMIC_ALIASES` in [`src/lib/aliases.ts`](./src/lib/aliases.ts); add to `DESTRUCTIVE_TOOLS` if it spends money or destroys state.
+3. Add the verb in [`src/commands/<server>.ts`](./src/commands) using `run()`, `buildArgs()` and the validators from `common.ts` (see [`wiki/extending.md`](./wiki/extending.md) for a template).
+4. Document it in [`wiki/commands.md`](./wiki/commands.md) and, if agents should use it, in the relevant skill under `skills/`.
+5. Add a mock response in `test/helpers/mock-mcp.ts` and a case in `test/cli.test.ts` when the verb has logic worth pinning.
 
 ## Output contract
 
-Every command must produce a structured envelope before rendering. The JSON shape is documented in [`wiki/output-contract.md`](./wiki/output-contract.md) and **must not change** in a backwards-incompatible way without a major version bump. New optional fields under `meta` are fine.
+Every command produces a structured envelope before rendering. The JSON shape is documented in [`wiki/output-contract.md`](./wiki/output-contract.md) and **must not change** in a backwards-incompatible way without a major version. New optional keys under `meta` are fine.
+
+## Skills and plugins
+
+Skills follow the [Agent Skills spec](https://agentskills.io/specification) and the writing rules in [`wiki/skills.md`](./wiki/skills.md): strict wording, the "why" beside every rule, one job per skill, under 500 lines. Plugin manifests (`plugin.json`, `mcp.json`, `.claude-plugin/`, `.mcp.json`) must keep the same version as `package.json`. `npm run validate:skills` checks all of it.
 
 ## Coding style
 
 - TypeScript strict mode, ESM, Node 20+.
-- No new runtime dependencies without discussion.
-- Prefer pure functions; the renderers, error classes, and config helpers are all pure.
-- Comments only for non-obvious *why*, never *what*.
+- Runtime dependencies are `commander`, `cli-table3`, `prompts` — no new ones without discussion. UI-only deps are loaded lazily so machine-mode calls stay fast.
+- Pure functions where possible: renderers, payment logic, envelope helpers and error classes are all pure and unit-tested.
+- Comments explain *why*, never *what*.
+- Nothing but the envelope goes to stdout; status lines, notes and links go to stderr.
 
 ## Tests
 
-- `vitest` smoke tests are in `test/smoke.test.ts`. They verify alias integrity, error contract, and renderer determinism.
-- Network-touching code is not unit-tested in CI (it would require a live Swiggy account). Manual smoke against a real account is preferred.
+- `test/smoke.test.ts` — catalog integrity, error contract, version.
+- `test/payments.test.ts` — `--pay` parsing, per-server confirm contract, status classification, poll loop with a virtual clock.
+- `test/envelope.test.ts` — payload extraction, envelope unwrapping, SSE parsing, renderer helpers, terminal helpers.
+- `test/mcp-client.test.ts` — `McpClient` against `test/helpers/mock-mcp.ts` (sessions, expiry recovery, SSE, 401/419/429/-32001).
+- `test/cli.test.ts` — the built `dist/cli.js` end to end against the mock server.
+
+Live Swiggy calls are not exercised in CI (they need a real account and place real orders). Do a manual pass with `swiggy doctor` and a read-only command before releasing.
 
 ## Commit style
 
-Conventional commits are encouraged:
+Conventional commits:
 
 ```
-feat(food): add `add-to-cart --variation` flag
-fix(auth): refresh token on 401 instead of failing
-docs(wiki): expand troubleshooting for windows path
+feat(food): add `add-to-cart --items` for variants
+fix(auth): treat HTTP 419 as a revoked session
+docs(wiki): document the payment stage
 ```
 
 ## Releasing
 
-Maintainers only. See [`wiki/releasing.md`](./wiki/releasing.md) — tag-based, runs `release.yml` which publishes to npm with provenance.
+Maintainers only — [`wiki/releasing.md`](./wiki/releasing.md). Tag-based; `release.yml` publishes to npm with provenance.
 
 ## Code of conduct
 

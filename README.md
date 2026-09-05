@@ -1,389 +1,288 @@
 <div align="center">
 
-# 🟧&nbsp; swiggy-cli
+<img src="./assets/swiggy-logo.svg" alt="Swiggy" width="84" height="84">
 
-**Human- and agent-friendly CLI for the [Swiggy MCP](https://github.com/Swiggy/swiggy-mcp-server-manifest) servers — Food, Instamart, Dineout.**
+# swiggy-cli
 
-[![npm](https://img.shields.io/npm/v/swiggy-cli?color=FC8019&label=npm&logo=npm)](https://www.npmjs.com/package/swiggy-cli)
+**Human- and agent-friendly CLI for the official [Swiggy MCP](https://mcp.swiggy.com/builders/) servers — Food, Instamart, Dineout.**
+
+[![npm](https://img.shields.io/npm/v/swiggy-cli?color=FF5200&label=npm&logo=npm)](https://www.npmjs.com/package/swiggy-cli)
 [![CI](https://github.com/HKTITAN/swiggy-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/HKTITAN/swiggy-cli/actions/workflows/ci.yml)
-[![Node](https://img.shields.io/node/v/swiggy-cli?color=FC8019)](https://nodejs.org)
-[![License: MIT](https://img.shields.io/badge/license-MIT-FC8019.svg)](./LICENSE)
-[![skills.sh](https://img.shields.io/badge/skills.sh-installable-FC8019)](https://skills.sh)
+[![Node](https://img.shields.io/node/v/swiggy-cli?color=FF5200)](https://nodejs.org)
+[![License: MIT](https://img.shields.io/badge/license-MIT-FF5200.svg)](./LICENSE)
+[![skills.sh](https://img.shields.io/badge/skills.sh-14%20skills-FF5200)](https://skills.sh)
+[![Agent Plugins](https://img.shields.io/badge/agent--plugins-1.0.0-FF5200)](https://agent-plugins.org)
 
 ```text
-swiggy — order food, groceries, and tables from your terminal (or your agent's tool loop)
+swiggy — order food, groceries and tables from your terminal, or from your agent's tool loop
+51 MCP tools · UPI / Swiggy Money payments · one login · stable JSON · 14 agent skills
 ```
 
 </div>
 
-`swiggy-cli` is a small, opinionated command-line wrapper around the three Model Context Protocol servers Swiggy publishes at [Swiggy/swiggy-mcp-server-manifest](https://github.com/Swiggy/swiggy-mcp-server-manifest). It feels native in a developer's interactive terminal **and** inside an agent / shell pipeline, with a stable JSON envelope, deterministic exit codes, and a generic `call` escape hatch that works for any tool the upstream servers expose.
+`swiggy-cli` wraps the three Model Context Protocol servers Swiggy runs at `mcp.swiggy.com` (`/food`, `/im`, `/dineout`). It feels native in a developer's terminal **and** inside an agent pipeline: every command emits one stable JSON envelope, exit codes are deterministic, destructive tools are gated, and a generic `call` escape hatch reaches every tool the servers expose — today's 51 and whatever ships next.
 
-> **Powered by [Swiggy MCP](https://mcp.swiggy.com/builders/).**
-> This is an **unofficial, community-built CLI**. It is **not the official Swiggy CLI** and is not affiliated with, endorsed by, or sponsored by Bundl Technologies Pvt. Ltd. or Swiggy. All trademarks belong to their respective owners.
+> **Powered by [Swiggy MCP](https://mcp.swiggy.com/builders/).** This is an **unofficial, community-built CLI**. It is not the official Swiggy CLI and is not affiliated with, endorsed by, or sponsored by Bundl Technologies Pvt. Ltd. / Swiggy. The Swiggy name and logo are trademarks of their owner and are used here only to identify the service this tool talks to.
 
-**Useful links** · [Official MCP manifest](https://github.com/Swiggy/swiggy-mcp-server-manifest) · [Builder docs](https://mcp.swiggy.com/builders/docs/) · [Wiki](./wiki) · [AGENTS.md](./AGENTS.md) · [Skills](./skills) · [Changelog](./CHANGELOG.md)
-
----
-
-## ✨ Highlights
-
-- **Two-layer command surface** — ergonomic verbs (`swiggy food search-restaurants ...`) on top of a generic, future-proof MCP wrapper (`swiggy call <server> <tool>`).
-- **Stable JSON envelope** under `--json` — one parseable line on stdout, no prose.
-- **Deterministic exit codes** mapped to error codes (`AUTH_REQUIRED → 3`, `MCP_ERROR → 6`, …).
-- **Safe by default** — destructive tools like `place_food_order` are gated behind confirmation; non-interactive mode fails closed.
-- **Profiles** for switching between cities, defaults, output modes.
-- **Agent-skills bundled** — install with `npx skills add HKTITAN/swiggy-cli`.
+**Links** · [Builder docs](https://mcp.swiggy.com/builders/docs/) · [Tool reference](https://mcp.swiggy.com/builders/docs/reference/) · [Wiki](./wiki) · [AGENTS.md](./AGENTS.md) · [Skills](./skills) · [Changelog](./CHANGELOG.md)
 
 ---
 
-## 🚀 Quick start
+## What's new in 0.2.0 (September 2026)
+
+Swiggy's MCP surface grew from 35 to **51 tools** since this CLI was last updated. 0.2.0 catches up with all of it:
+
+- **Correct parameters everywhere.** Every ergonomic command now sends the documented camelCase names (`addressId`, `restaurantId`, `menu_item_id`, `spinId`, …). Earlier releases guessed snake_case names that the servers silently ignored.
+- **Payments.** The shared Payment stage (`get_payment_options`, `check_payment_status`, `confirm_order`) on all three servers. `swiggy food checkout --pay upi --wait` places the order, prints a scan-or-tap payment link, polls on Swiggy's cadence and confirms — headless, no widget needed. `--pay cash`, `--pay upi:<app>` and `--pay swiggypay` (Swiggy Money, announced for MCP on 4 Sept 2026) are supported too.
+- **New tools wired as verbs:** Food `create-address`/`delete-address`/`delivery-status`, Instamart `list-coupons`/`apply-coupon`/`delivery-status`, Dineout `cancel`, and `payment-options`/`payment-status`/`confirm-order`/`report-error` on every server.
+- **One login.** Swiggy issues a single token valid on all three servers, supports dynamic client registration, and tokens last 5 days. `swiggy auth init` opens your browser once; no client id needed.
+- **Rate-limit aware.** `X-RateLimit-*` headers land in `meta.rateLimit`; HTTP 429 maps to exit 9 with `Retry-After`; the MCP session id is persisted so consecutive commands reuse one session instead of re-initializing (Swiggy counts handshakes as auth events).
+- **Smoother terminal.** Adaptive truecolor/256/16-color output, OSC 8 clickable links, a tear-free status line with elapsed time, native progress indicators on Ghostty/WezTerm/iTerm2/Windows Terminal, lazy-loaded UI so `--json` calls start faster, and `swiggy shell` — an interactive session with tab completion, history and a warm MCP session.
+- **Native, not a wrapper.** Every response has its own view (restaurants, menus, carts with the bill, products with pack sizes, orders, tracking, slots, bookings, payment methods), rows are numbered, and the next command takes the number: `swiggy food menu 1`, `swiggy food add 3 --qty 2`, `swiggy instamart add 1`, `swiggy dineout book 2 --guests 2`. Progress reads "Searching restaurants", not `tools/call`. `instamart add` merges into the existing cart even though the upstream tool replaces it; `dineout book` on a paid deal creates the booking cart for you.
+- **For agents:** 14 [skills.sh](https://skills.sh)-compatible skills (8 for this CLI, 6 for the official MCP servers), an [Agent Plugins](https://agent-plugins.org) manifest, a Claude Code plugin/marketplace, `swiggy docs` to fetch Swiggy's docs as Markdown, and `swiggy mcp-config` to print client configs.
+- **An LLM-maintained wiki** ([`llm-wiki/`](./llm-wiki)) in Karpathy's format holds the compiled research behind this release — every Swiggy MCP fact, dated and sourced, with the contradictions in Swiggy's own docs resolved.
+
+---
+
+## Quick start
 
 ```bash
-# Install
 npm install -g swiggy-cli
 
-# Authenticate once per server (browser-based OAuth)
-swiggy auth init --server food
-swiggy auth init --server instamart
-swiggy auth init --server dineout
+swiggy auth init                                  # browser: phone + OTP. One login for food, instamart, dineout
+swiggy food addresses                             # pick an addressId once…
+swiggy profile set default defaultAddressId <id>  # …and never pass it again
 
-# Use it
-swiggy food search-restaurants --query "biryani" --city Delhi
+swiggy food search biryani                        # numbered results…
+swiggy food menu 1                                # …so the next command takes the number
+swiggy food add 3 --qty 2                         # menu_item_id + restaurant filled in for you
+swiggy food cart
+swiggy food checkout --pay upi --wait             # scan-or-tap link → polls → confirms
 
-# Use it from a script
-swiggy food search-restaurants --query "biryani" --city Delhi --json | jq '.data[0]'
+swiggy instamart search milk
+swiggy instamart add 1 --qty 2                    # merges into your current cart
+swiggy instamart checkout --pay cash
+
+swiggy dineout search italian --address-id 1      # 1 = first saved location
+swiggy dineout slots 1 --date 2026-09-06
+swiggy dineout book 2 --guests 2                  # free deal books directly; paid: add --pay upi --wait
 ```
 
-> Don't want to install? `npx -p swiggy-cli swiggy --help` runs it once without touching your global PATH.
+Raw ids work everywhere a number does. `swiggy` with no arguments opens an interactive session with tab completion.
 
----
+Agents and scripts add `--json --no-interactive`:
 
-## 📦 Installation
+```bash
+swiggy food search -q sushi --json --no-interactive | jq '.data.restaurants[0]'
+```
+
+Prefer not to install? `npx -p swiggy-cli swiggy --help`.
+
+<details>
+<summary><b>Install options</b></summary>
 
 `swiggy-cli` requires **Node.js 20+**.
 
 ```bash
 npm install -g swiggy-cli        # global (recommended)
-pnpm add -g swiggy-cli           # pnpm
-yarn global add swiggy-cli       # yarn classic
-npx -p swiggy-cli swiggy <args>  # zero-install, one-off
+pnpm add -g swiggy-cli
+yarn global add swiggy-cli
+npx -p swiggy-cli swiggy <args>  # zero-install
 ```
 
-### Package name vs. command name
+The npm package is `swiggy-cli`; it installs two binaries: `swiggy` (canonical) and `smn` (short alias).
 
-The npm package is **`swiggy-cli`**, but the binaries it installs are:
-
-| Binary   | Purpose                                       |
-| -------- | --------------------------------------------- |
-| `swiggy` | canonical command, used everywhere in the docs |
-| `smn`    | short alias (Swiggy MCP)                       |
-
-So after `npm i -g swiggy-cli` you just type `swiggy ...`. With `npx`, the package name differs from the binary, so use `npx -p swiggy-cli swiggy <args>`.
+</details>
 
 ---
 
-## 🤖 Install the agent-skills
+## For AI agents
 
-`swiggy-cli` ships [skills.sh](https://skills.sh)-compatible skills under [`skills/`](./skills). They teach an agent (Claude, Cursor, Codex, etc.) **how and when** to drive the CLI — the right flags, the safety rails, the exit-code branching.
+### Skills (skills.sh / Agent Skills spec)
+
+Fourteen focused skills live under [`skills/`](./skills). Each is a single `SKILL.md` written to be strict and to explain *why* — the agent walks the same decision tree every time.
 
 ```bash
-# Install all swiggy-cli skills into your agent
-npx skills add HKTITAN/swiggy-cli
-
-# Or pick one
-npx skills add HKTITAN/swiggy-cli -s swiggy-checkout
+npx skills add HKTITAN/swiggy-cli            # pick skills + agents interactively
+npx skills add HKTITAN/swiggy-cli --all      # everything, every agent
+npx skills add HKTITAN/swiggy-cli -s swiggy-mcp -s swiggy-mcp-payments -a claude-code
 ```
 
-| Skill                    | Use when…                                                |
-| ------------------------ | -------------------------------------------------------- |
-| `swiggy-cli`             | master skill — install this first                        |
-| `swiggy-search`          | "find me X on Swiggy"                                    |
-| `swiggy-cart`            | "what's in my cart" / "add X" / "clear cart"             |
-| `swiggy-checkout`        | "place the order" — gated, requires explicit consent     |
-| `swiggy-dineout-booking` | "book a table at X for Friday"                           |
-| `swiggy-track`           | "where's my order" / "show recent orders"                |
+| Skill | Teaches an agent to… |
+| --- | --- |
+| `swiggy-cli` | drive this CLI: machine mode, envelope, exit codes, auth detection |
+| `swiggy-search` · `swiggy-cart` · `swiggy-checkout` · `swiggy-pay` · `swiggy-dineout-booking` · `swiggy-track` · `swiggy-address` | one task each, via the CLI |
+| `swiggy-mcp` | use the **official MCP servers directly**: auth, envelope, errors, rate limits, safety rules (+ a 51-tool parameter reference) |
+| `swiggy-mcp-food` · `swiggy-mcp-instamart` · `swiggy-mcp-dineout` | the end-to-end journey on each server with exact parameters |
+| `swiggy-mcp-payments` | the UPI / Cash / Swiggy Money flow, widget and headless, per-server confirm contract |
+| `swiggy-mcp-docs` | look up Swiggy's docs (`llms.txt`, per-page `.md`) before writing Swiggy code |
 
-See [`wiki/skills.md`](./wiki/skills.md) for authoring guidelines.
+### Plugins
+
+- **Agent Plugins 1.0.0** ([agent-plugins.org](https://agent-plugins.org)): the repo root is a valid plugin — [`plugin.json`](./plugin.json), [`mcp.json`](./mcp.json) (the three Streamable HTTP servers), `skills/`.
+- **Claude Code**: `claude plugin marketplace add HKTITAN/swiggy-cli` then `claude plugin install swiggy@swiggy-cli` — installs the skills and pre-wires the three MCP servers ([`.claude-plugin/`](./.claude-plugin), [`.mcp.json`](./.mcp.json)).
+- Any other client: `swiggy mcp-config --client cursor|vscode|windsurf|claude|codex|plugin` prints the config to paste.
+
+### Docs on demand
+
+```bash
+swiggy docs                                   # llms.txt index
+swiggy docs reference/instamart/update_cart   # one page as Markdown
+swiggy docs --full                            # everything (~400 KB)
+```
+
+See [AGENTS.md](./AGENTS.md) for the full agent contract.
 
 ---
 
-## 🔐 Auth & config
+## Human mode · Agent mode
 
-Configuration lives at `~/.swiggy/` (override with `SWIGGY_HOME`):
+Every command builds a structured envelope first; renderers turn it into a table or a JSON line, so the two modes cannot disagree.
 
-```
-~/.swiggy/
-├── config.json   profiles, defaults, output mode, endpoint overrides
-└── auth.json     OAuth tokens (mode 0600)
-```
+**Human mode** (default in a terminal): tables with sensible columns, Swiggy's own `message` rendered as Markdown, a status line with elapsed time, clickable links, interactive address picker, confirmation prompts for destructive actions. `swiggy` with no arguments opens `swiggy shell`.
 
-```bash
-swiggy config init                # write a default config
-swiggy config show                # print current config + paths
-swiggy auth init                  # OAuth all three servers (browser flow)
-swiggy auth init --server food    # auth a single server
-swiggy auth status                # token presence + expiry per server
-swiggy auth logout --server food  # clear stored credentials
-```
+**Agent mode** flags:
 
-The OAuth flow is **Authorization Code + PKCE** against a loopback redirect (`http://127.0.0.1:<ephemeral>/callback` — both `127.0.0.1` and `localhost` are whitelisted server-side per the official [Swiggy MCP manifest](https://github.com/Swiggy/swiggy-mcp-server-manifest)).
+| Flag | Behaviour |
+| --- | --- |
+| `--json` | one JSON envelope on stdout; no prose, colour or spinner |
+| `--plain` | TSV: header row + rows (same column choice as the table) |
+| `--raw` | the untouched MCP `tools/call` result |
+| `--quiet` | no non-essential stderr |
+| `--no-interactive` | never prompt; fail closed (also implied when stdout is not a TTY) |
+| `-y, --yes` | consent for destructive tools |
 
-Swiggy does **not** advertise dynamic client registration, so you need a pre-registered `client_id`:
-
-```bash
-# one-shot
-swiggy auth init --server food --client-id <your-client-id>
-
-# or persistently
-export SWIGGY_OAUTH_CLIENT_ID=<your-client-id>
-export SWIGGY_OAUTH_CLIENT_SECRET=<optional-for-confidential-clients>
-swiggy auth init
-```
-
-If Swiggy ever exposes a CLI-specific public client_id at <https://mcp.swiggy.com/builders/>, point `--client-id` at it. If you hit `localhost` whitelisting issues instead of `127.0.0.1`, pass `--redirect-host localhost`.
-
-### Profiles
-
-```bash
-swiggy profile list
-swiggy profile create work --city Bengaluru --output json
-swiggy profile use work
-swiggy profile set work defaultCity Mumbai
-```
-
-Override per-invocation: `swiggy --profile work food cart`.
-
----
-
-## 🧑‍💻 Human mode + 🤖 Agent mode
-
-This CLI is built around one simple idea:
-
-> Every command produces a structured envelope first; renderers turn it into either a pretty table or a strict JSON line.
-
-### Human mode (default)
-
-Pretty tables, brand-tinted headings, spinners, colors, interactive confirmation for destructive actions like `place_food_order`, `book_table`, or `clear_cart`.
-
-```bash
-$ swiggy food search-restaurants --query biryani --city Delhi
-swiggy › food/search_restaurants
-┌────────────────────┬──────────┬────────┐
-│ name               │ rating   │ id     │
-├────────────────────┼──────────┼────────┤
-│ Paradise Biryani   │ 4.4      │ 12345  │
-│ Behrouz Biryani    │ 4.2      │ 22113  │
-└────────────────────┴──────────┴────────┘
-```
-
-### Agent mode
-
-Pass any of:
-
-| Flag                | Behavior                                                                  |
-| ------------------- | ------------------------------------------------------------------------- |
-| `--json`            | One JSON envelope on stdout. No prose, no color, no spinner.              |
-| `--plain`           | TSV-friendly line output for piping to `awk`/`cut`.                       |
-| `--raw`             | Emit the raw MCP `tools/call` result for debugging / replay.              |
-| `--quiet`           | Suppress non-essential logs.                                              |
-| `--no-interactive`  | Disable prompts, colors, spinners. Required for sandboxed agents.         |
-| `-y`, `--yes`       | Auto-confirm destructive actions. Without it, non-interactive runs fail.  |
-
-Stable JSON envelope:
+Envelope:
 
 ```json
-{
-  "ok": true,
-  "server": "food",
-  "tool": "search_restaurants",
-  "data": [ /* tool payload */ ],
-  "meta": { "profile": "default" }
-}
+{ "ok": true, "server": "food", "tool": "search_restaurants",
+  "data": { "restaurants": [ … ], "nextOffset": 10 },
+  "meta": { "profile": "default", "message": "…", "rateLimit": { "limit": 70, "remaining": 61, "reset": 1720000060 } } }
 ```
 
-Errors:
+`data` is the tool's own payload — Swiggy's `{ success, data, message }` wrapper is unwrapped, `message` goes to `meta.message`, and a `success: false` becomes an error envelope:
 
 ```json
-{ "ok": false, "error": { "code": "AUTH_REQUIRED", "message": "...", "details": {} } }
+{ "ok": false, "error": { "code": "MCP_ERROR", "message": "Invalid addressId: required", "hint": "Run: swiggy food addresses, then retry with --address-id <id>" } }
 ```
 
 ### Exit codes
 
-| Code | Meaning                                        |
-| ---: | :--------------------------------------------- |
-|    0 | success                                        |
-|    1 | unknown failure                                |
-|    2 | usage error (bad flags, unknown server)        |
-|    3 | auth required / auth failed                    |
-|    4 | not found (e.g. unknown tool)                  |
-|    5 | network failure                                |
-|    6 | MCP server returned a tool error               |
-|    7 | confirmation required (non-interactive + risky)|
-|    8 | config error                                   |
+| Code | Meaning |
+| ---: | --- |
+| 0 | success |
+| 1 | unknown failure |
+| 2 | usage error |
+| 3 | auth required / failed → `swiggy auth init` |
+| 4 | not found (tool / docs page) |
+| 5 | network failure |
+| 6 | Swiggy tool error (`success:false`, `isError`, JSON-RPC error) |
+| 7 | confirmation required (destructive tool without `--yes` in machine mode) |
+| 8 | config error |
+| 9 | rate limited (HTTP 429; `error.details.retryAfterSeconds`) |
+| 10 | payment failed / cancelled / timed out during `--wait` |
 
 ---
 
-## 📚 Examples
+## Payments
 
-### Humans
+```
+get_payment_options → place order (Cash | UPI app | UPI QR | SwiggyPay) → PENDING_PAYMENT
+     → check_payment_status (Swiggy's cadence) → confirm_order → PLACED → track
+```
 
 ```bash
-swiggy food search-restaurants --query "pizza" --city Mumbai
-swiggy food menu --restaurant-id 12345
-swiggy food cart
-swiggy food add-to-cart --restaurant-id 12345 --item-id 9 --quantity 2
-swiggy food checkout --address-id home    # confirms before placing
-
-swiggy instamart search --query "milk bread eggs"
-swiggy instamart cart
-swiggy instamart checkout --address-id home
-
-swiggy dineout search --query italian --city Delhi
-swiggy dineout slots --restaurant-id 4242 --date 2026-05-01 --guests 2
-swiggy dineout book --input '{"slot_id":"19:30","guests":2,"restaurant_id":4242}'
+swiggy instamart payment-options                       # what this cart can pay with
+swiggy instamart checkout --pay cash                   # COD: placed immediately
+swiggy instamart checkout --pay upi --wait             # link → poll → confirm, one command
+swiggy instamart checkout --pay upi                    # two-step: returns paasId/orderId/bridgeUrl + meta.payment.next
+swiggy instamart payment-status --paas-id <p> --order-id <o> --wait
+swiggy food checkout --pay upi:gpay://upi/ --wait      # a specific UPI app from payment-options
+swiggy food checkout --pay swiggypay                   # Swiggy Money, when the server offers it
 ```
 
-### Agents / scripts
+The CLI honours `pollingIntervalInMs`/`maxTimeToPollForInMs` from Swiggy, never tight-loops the long-poll, applies the right `confirm_order` contract per server (Food: `orderId+addressId+lat+lng`; Instamart/Dineout: `orderId+paasId`), and never announces success on a pending order. Details: [`wiki/payments.md`](./wiki/payments.md).
+
+---
+
+## Auth & config
+
+```
+~/.swiggy/                      (override with SWIGGY_HOME)
+├── config.json                 profiles, defaults, endpoint overrides
+├── auth.json                   OAuth token (mode 0600)
+├── history                     swiggy shell history
+└── cache/sessions.json         Mcp-Session-Id per server (reused across invocations)
+```
 
 ```bash
-# Strict JSON, suitable for jq pipelines
-swiggy food search-restaurants -q sushi --json | jq '.data | length'
-
-# Plain TSV → awk
-swiggy food search-restaurants -q sushi --plain | awk -F'\t' 'NR>1 {print $1}'
-
-# Discover tools at runtime
-swiggy tools food --json | jq -r '.data[].name'
-
-# Read a tool's schema
-swiggy schema food search_restaurants --json
-
-# Fully generic call
-swiggy call instamart search_products --input '{"query":"chocolate"}' --json
-
-# CI-safe, no prompts, fail rather than ask
-swiggy food checkout --no-interactive --yes --json
+swiggy auth init                 # browser OAuth 2.1 + PKCE; dynamic client registration; one token for all servers
+swiggy auth init --no-browser    # print the URL instead (SSH sessions)
+swiggy auth status               # per-server token state + expiry (tokens last 5 days; re-run init when expired)
+swiggy auth logout
+swiggy doctor                    # runtime, config, auth, OAuth metadata, live tool list, catalog drift, docs reachability
 ```
 
-### Profiles
+Profiles hold defaults so commands stay short: `defaultAddressId` (Food/Instamart), `defaultLat`/`defaultLng` (Dineout), `output`, and per-server `endpoints` overrides (or `SWIGGY_FOOD_URL` / `SWIGGY_INSTAMART_URL` / `SWIGGY_DINEOUT_URL`).
+
+---
+
+## Commands
+
+`swiggy --help` is complete; the short version:
+
+| Area | Commands |
+| --- | --- |
+| Generic | `servers` · `tools <server> [--offline]` · `schema <server> <tool>` · `call <server> <tool> --input <json>` · `docs [path]` · `mcp-config` · `doctor` · `shell` |
+| Food | `search` · `search-menu` · `menu` · `addresses` · `create-address` · `delete-address` · `cart` · `add-to-cart` · `clear-cart` · `list-coupons` · `apply-coupon` · `checkout` · `orders` · `order` · `track` · `delivery-status` · `payment-options` · `payment-status` · `confirm-order` · `report-error` |
+| Instamart (`im`) | `search` · `go-to-items` · `addresses` · `create-address` · `delete-address` · `cart` · `set-cart` · `clear-cart` · `list-coupons` · `apply-coupon` · `checkout` · `orders` · `order` · `track` · `delivery-status` · payment/support as above |
+| Dineout | `search` · `details` · `locations` · `slots` · `cart` · `book` · `status` · `cancel` · payment/support as above |
+| Auth/config | `auth init|status|whoami|logout` · `config show|path|init` · `profile list|use|create|delete|set` |
+
+Full mapping with flags: [`wiki/commands.md`](./wiki/commands.md). Upstream catalog with parameters: [`wiki/tools-catalog.md`](./wiki/tools-catalog.md).
+
+---
+
+## Architecture
+
+```
+swiggy <verb>  ──►  Layer A (ergonomic, documented params)  ──►  Layer B  swiggy call <server> <tool>
+                                                                    └── McpClient · Streamable HTTP · JSON or SSE
+                                                                        ├── persisted Mcp-Session-Id, 404 → re-init once
+                                                                        ├── 401/419 → AUTH, 429 → RATE_LIMITED, -32001 → AUTH
+                                                                        └── https://mcp.swiggy.com/{food,im,dineout}
+```
+
+- `src/commands/*` — verbs; `payments.ts` and `address.ts` are shared across servers.
+- `src/lib/mcp.ts` — client; `auth.ts` — OAuth (RFC 9728/8414 discovery, DCR, PKCE); `payments.ts` — pure payment-flow logic; `aliases.ts` — the verified 51-tool catalog.
+- `src/lib/term.ts` + `ui.ts` — terminal capability detection and the status line (techniques borrowed from Grok Build's TUI).
+- Tests: unit (`aliases`, `payments`, `envelope`), client vs a mock MCP server, and black-box tests of the built binary. `npm test` builds first.
+
+More: [`wiki/architecture.md`](./wiki/architecture.md).
+
+---
+
+## Safety
+
+- Destructive tools — `place_food_order`, `checkout`, `book_table`, `cancel_booking`, `flush_food_cart`, `clear_cart`, `delete_address` — ask for confirmation, or need `--yes` in machine mode.
+- Order placement is never retried automatically; check `orders`/`status` first (Swiggy's own guidance).
+- Food/Instamart orders cannot be cancelled via the API — Swiggy customer care: 080-67466729.
+- Tokens live at `~/.swiggy/auth.json` (mode 0600). Nothing is printed to stdout in human/JSON mode; `--raw` echoes the literal MCP response by design. No telemetry; the CLI talks only to `mcp.swiggy.com`.
+
+---
+
+## Contributing & releasing
 
 ```bash
-swiggy --profile work food search-restaurants -q salad
-SWIGGY_PROFILE=work swiggy food cart    # equivalent
+npm ci && npm run lint && npm test && npm run validate:skills
 ```
 
----
+See [CONTRIBUTING.md](./CONTRIBUTING.md) and [`wiki/releasing.md`](./wiki/releasing.md) (tag `vX.Y.Z` → GitHub Actions publishes to npm with provenance).
 
-## 🏗️ Architecture
+## Troubleshooting
 
-```
-swiggy <human-friendly verb>          ergonomic Layer A commands
-       └── compiles to ──────────►    swiggy call <server> <tool>     (Layer B, generic)
-                                      └── McpClient (HTTP MCP, OAuth)
-                                          └── https://mcp.swiggy.com/{food,im,dineout}
-```
+`swiggy doctor` first. Common cases in [`wiki/troubleshooting.md`](./wiki/troubleshooting.md): `AUTH_REQUIRED` after 5 days (re-run `auth init`), `Missing address id` in machine mode (pass `--address-id` or set `defaultAddressId`), Dineout "missing coordinates" (search with `--address-id` first), `npx swiggy` not found (`npx -p swiggy-cli swiggy`).
 
-- **Layer A (ergonomic)** lives in `src/commands/{food,instamart,dineout}.ts`. Each subcommand maps 1:1 to an upstream MCP tool (see `src/lib/aliases.ts`). It exists for terminal ergonomics — agents are encouraged to use Layer B directly.
-- **Layer B (generic)** is `swiggy servers | tools <s> | schema <s> <t> | call <s> <t>`. Tools are discovered at runtime via the MCP `tools/list` RPC; schemas are pulled live, not hard-coded. When Swiggy ships a new MCP tool, this CLI exposes it the same minute.
-- The `McpClient` speaks Streamable-HTTP MCP (JSON or SSE), maintains a session id across calls, and refreshes OAuth tokens automatically when they're near expiry.
+## License
 
-Tool catalog (verified 2026-04-28 against the official reference at <https://mcp.swiggy.com/builders/docs/reference/>):
-
-| Server      | Tools (count) |
-| ----------- | ------------- |
-| `food`      | 14 — `search_restaurants`, `search_menu`, `get_restaurant_menu`, `get_addresses`, `get_food_cart`, `update_food_cart`, `flush_food_cart`, `apply_food_coupon`, `fetch_food_coupons`, `place_food_order`, `get_food_orders`, `get_food_order_details`, `track_food_order`, `report_error` |
-| `instamart` | 13 — `search_products`, `your_go_to_items`, `get_addresses`, `create_address`, `delete_address`, `get_cart`, `update_cart`, `clear_cart`, `checkout`, `get_orders`, `get_order_details`, `track_order`, `report_error` |
-| `dineout`   | 8 — `search_restaurants_dineout`, `get_restaurant_details`, `get_saved_locations`, `create_cart`, `get_available_slots`, `book_table`, `get_booking_status`, `report_error` |
-
----
-
-## 🛡️ Safety
-
-- Destructive tools (`place_food_order`, `checkout`, `book_table`, `flush_food_cart`, `clear_cart`, `delete_address`) require interactive confirmation, or `--yes` in non-interactive mode.
-- COD orders **cannot be cancelled** by the MCP API — review carts before checkout.
-- Per the upstream manifest: do not open the Swiggy mobile app while running these commands; sessions can conflict.
-- Tokens are stored at `~/.swiggy/auth.json` with mode `0600`. No secrets in env or argv.
-
----
-
-## 📦 Publishing
-
-```bash
-npm whoami
-npm view swiggy-cli              # confirm the name is yours / available
-npm run build
-npm pack --dry-run              # verify only dist/, README, AGENTS, wiki ship
-npm version 0.1.0 --no-git-tag-version
-npm publish --access public
-```
-
----
-
-## 🩺 Troubleshooting
-
-- **`AUTH_REQUIRED` on every call** — run `swiggy auth init --server <name>` and confirm `swiggy auth status` shows tokens.
-- **OAuth metadata discovery fails** — verify `curl https://mcp.swiggy.com/food/.well-known/oauth-authorization-server` returns JSON.
-- **Tool not found** — run `swiggy tools <server>` to see the live list. If a tool was renamed upstream, the ergonomic alias may lag; the generic `swiggy call <server> <new-name>` still works.
-- **CI hangs on a confirmation prompt** — pass `--no-interactive --yes` (or `--no-interactive` to fail fast).
-- **`npx swiggy` doesn't find the binary** — the npm package is `swiggy-cli`, not `swiggy`. Use `npx -p swiggy-cli swiggy <args>` (or `npx --package swiggy-cli@latest swiggy --help` to pin a version).
-
----
-
-## 🗂️ Project layout
-
-See [`wiki/architecture.md`](./wiki/architecture.md) and [`AGENTS.md`](./AGENTS.md).
-
-```
-swiggy-cli/
-├── AGENTS.md
-├── README.md
-├── package.json
-├── tsconfig.json
-├── tsup.config.ts
-├── src/
-│   ├── cli.ts
-│   ├── types/index.ts
-│   ├── lib/
-│   │   ├── aliases.ts
-│   │   ├── auth.ts
-│   │   ├── config.ts
-│   │   ├── confirm.ts
-│   │   ├── errors.ts
-│   │   ├── mcp.ts
-│   │   ├── output.ts
-│   │   ├── paths.ts
-│   │   ├── profiles.ts
-│   │   ├── tty.ts
-│   │   └── renderers/{human,json,plain}.ts
-│   └── commands/
-│       ├── auth.ts
-│       ├── common.ts
-│       ├── config.ts
-│       ├── dineout.ts
-│       ├── doctor.ts
-│       ├── food.ts
-│       ├── generic.ts
-│       ├── instamart.ts
-│       └── profile.ts
-├── test/smoke.test.ts
-└── wiki/
-    ├── architecture.md
-    ├── commands.md
-    ├── tools-catalog.md
-    ├── output-contract.md
-    ├── auth.md
-    ├── extending.md
-    └── troubleshooting.md
-```
-
----
-
----
-
-## 🤝 Contributing
-
-PRs welcome — see [CONTRIBUTING.md](./CONTRIBUTING.md). Adding a new ergonomic command is roughly six lines in [`src/lib/aliases.ts`](./src/lib/aliases.ts) plus a subcommand block under [`src/commands/`](./src/commands).
-
-## 📜 License
-
-[MIT](./LICENSE). This project is community-maintained and is **not** affiliated with Bundl Technologies / Swiggy. The upstream MCP servers are operated by Swiggy under their own terms; see <https://mcp.swiggy.com/builders/docs/> and the [official manifest](https://github.com/Swiggy/swiggy-mcp-server-manifest).
+[MIT](./LICENSE). Community-maintained; not affiliated with Bundl Technologies / Swiggy. The upstream MCP servers are operated by Swiggy under their own terms — see <https://mcp.swiggy.com/builders/docs/>.

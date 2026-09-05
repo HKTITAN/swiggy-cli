@@ -1,32 +1,50 @@
 # Extending
 
-The CLI is designed so that new upstream tools work **immediately** through Layer B with no code change:
+New upstream tools work **immediately** through Layer B with no code change:
 
 ```bash
-swiggy call <server> <new_tool_name> --input '{...}'
+swiggy call <server> <new_tool_name> --input '{…documented camelCase params…}'
 ```
 
-To add a friendly Layer A verb on top:
+`swiggy doctor` tells you when the live `tools/list` has a tool the bundled catalog lacks.
 
-1. **Verify the tool exists upstream.** `swiggy tools <server> --json | jq -r '.data[].name'`.
-2. **Update the catalog.** Append the tool name to `TOOL_CATALOG[<server>]` in `src/lib/aliases.ts`.
-3. **Add an alias.** Append `<verb>: <tool_name>` to `ERGONOMIC_ALIASES[<server>]`.
-4. **(Optional) Mark destructive.** If the tool mutates server state in a hard-to-reverse way, add it to `DESTRUCTIVE_TOOLS`.
-5. **Wire a subcommand.** In `src/commands/<server>.ts`, add a new `attachOutputOptions(food.command(...))` block that calls `callTool(server, tool, args, readGlobalOpts(parent))`. Use the existing patterns — `--input <json>` for free-form payloads, `--input-file <path>` for large ones.
-6. **(Optional) Custom human renderer.** Pass a third argument to `callTool` to override the default table renderer for that command only. Keep the JSON shape unchanged.
+## Adding a Layer A verb
 
-## Adding a new server
+1. **Verify upstream.** `swiggy docs reference/<server>/<tool>` (or `swiggy schema <server> <tool> --json`) — copy the parameter names exactly.
+2. **Catalog.** Append the tool to `TOOL_CATALOG[<server>]` in `src/lib/aliases.ts` and add `<verb>: <tool>` to `ERGONOMIC_ALIASES`. Tests fail if a catalog tool has no alias or an alias points to an unknown tool.
+3. **Destructive?** If it places an order, spends money or destroys state, add it to `DESTRUCTIVE_TOOLS` (gated by confirmation / `--yes`); mutations go in `WRITE_TOOLS`.
+4. **Verb.** In `src/commands/<server>.ts`:
 
-The CLI is structured around three servers but the abstractions don't hard-code that. To add a fourth:
+```ts
+attachOutputOptions(
+  food
+    .command("my-verb")
+    .description("…")
+    .requiredOption("--thing-id <id>", "…")
+    .option("--input <json>", "raw arguments JSON (merged over flags)")
+    .action(async (o: { thingId: string; input?: string }) => {
+      const opts = readGlobalOpts(food);
+      await run(opts, async () => {
+        const addressId = await ensureAddressId("food", opts, undefined, "food my-verb"); // if the tool needs it
+        await callTool("food", "the_tool", await buildArgs({ addressId, thingId: o.thingId }, o.input), opts);
+      });
+    })
+);
+```
 
-1. Extend `ServerName` and `SERVER_NAMES` in `src/types/index.ts`.
-2. Add an entry to `DEFAULT_ENDPOINTS` in `src/lib/config.ts` and a `SWIGGY_<NAME>_URL` env override.
-3. Add an entry in `TOOL_CATALOG` and (optionally) `ERGONOMIC_ALIASES`.
-4. Add a new `src/commands/<server>.ts` file mirroring `food.ts`.
-5. Register it in `src/cli.ts`.
+`run()` renders any thrown `CliError` in the caller's output mode; `buildArgs()` drops empty values and lets `--input` override flags; `num()`, `positiveInt()`, `oneOf()`, `requireFlag()` validate inputs with `USAGE` errors.
 
-`McpClient`, `auth.ts`, renderers, and the doctor command are all server-agnostic — they will pick up the new server with no further changes.
+5. **Docs + skills.** Add a row to `wiki/commands.md`, regenerate nothing (the tools catalog is generated from Swiggy's docs), and mention the verb in the relevant skill if agents should use it.
+6. **Tests.** Extend `test/helpers/mock-mcp.ts` with a canned response if the verb has logic worth pinning, then add a case to `test/cli.test.ts`.
 
-## Adding a new output mode
+## Custom human rendering
 
-Renderers are pure functions of the envelope. Add `src/lib/renderers/<mode>.ts`, wire a new flag into `cli.ts`, and branch in `output.ts:renderResult`. Keep the JSON renderer as the source of truth.
+Pass a renderer to `callTool(server, tool, args, opts, (data, ctx) => …)`; keep the JSON shape unchanged. `src/commands/payments.ts` (`renderPaymentOptions`) is an example.
+
+## Adding a server
+
+`ServerName`/`SERVER_NAMES` in `src/types/index.ts`, `DEFAULT_ENDPOINTS` + `SERVER_LABEL` + `SERVER_DOMAIN` in `src/lib/config.ts`, `TOOL_CATALOG`/`ERGONOMIC_ALIASES`/`PLACE_ORDER_TOOL` in `src/lib/aliases.ts`, a `src/commands/<server>.ts`, registration in `src/program.ts`, and `mcp.json`/`.mcp.json`. The client, auth, renderers, doctor and shell are server-agnostic.
+
+## Adding an output mode
+
+Renderers are pure functions of the envelope: add `src/lib/renderers/<mode>.ts`, a flag in `attachOutputOptions` and `src/program.ts`, and a branch in `renderResult`. JSON stays the source of truth.

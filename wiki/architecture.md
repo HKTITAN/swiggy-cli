@@ -3,53 +3,60 @@
 `swiggy` is a thin, structured shell over the three Swiggy MCP servers. Every command flows through the same pipeline:
 
 ```
-arg parsing (commander)
-  └── command handler (src/commands/*)
-       └── McpClient.callTool(name, args)            (src/lib/mcp.ts)
-            ├── ensure auth        (src/lib/auth.ts)
-            ├── JSON-RPC POST → Streamable HTTP MCP
-            └── parse JSON or SSE frame
-       └── extractToolPayload(result)
-       └── renderResult(envelope, ctx)
-            ├── --json   → renderers/json.ts
-            ├── --plain  → renderers/plain.ts
-            └── default  → renderers/human.ts
+arg parsing (commander, src/program.ts)
+  └── command handler (src/commands/*)                 run(opts, …) → uniform error rendering
+       ├── resolve inputs: addressId (profile default / picker), Dineout coordinates (flags / profile / last search)
+       ├── invokeTool(server, tool, args)              (src/commands/common.ts)
+       │    ├── confirm() for DESTRUCTIVE_TOOLS         (src/lib/confirm.ts)
+       │    ├── McpClient.callTool()                    (src/lib/mcp.ts)
+       │    │     ├── bearer token (src/lib/auth.ts)  ·  persisted Mcp-Session-Id  ·  JSON or SSE
+       │    │     └── 401/419/-32001 → AUTH · 429 → RATE_LIMITED · 404 → re-init once
+       │    ├── extractToolPayload() → unwrapSwiggyEnvelope()   { success, data, message } → data + meta.message
+       │    └── success:false → MCP_ERROR
+       ├── (payments) placeOrderWithPayment → waitForPayment    (src/commands/payments.ts, src/lib/payments.ts)
+       └── renderResult(envelope)                      (src/lib/output.ts)
+            ├── --json / --raw → renderers/json.ts
+            ├── --plain        → renderers/plain.ts
+            └── default        → renderers/human.ts   (tables, Markdown messages, colours via src/lib/ui.ts)
 ```
 
 ## Why two layers?
 
-**Layer A (ergonomic)** is for humans typing in a terminal. Subcommands like `swiggy food search-restaurants --query biryani` map 1:1 to upstream tool names via the alias table in `src/lib/aliases.ts`. It exists so a person doesn't have to remember `search_restaurants` vs `search_restaurants_dineout`.
+**Layer A (ergonomic)** is for humans. Verbs like `swiggy food search -q biryani` map 1:1 to upstream tools via `src/lib/aliases.ts` and send the parameter names Swiggy documents. `--input <json>` on most verbs merges extra documented parameters over the flags, so a verb never blocks access to a new upstream field.
 
-**Layer B (generic)** is for agents and power users. `swiggy tools <server>` and `swiggy schema <server> <tool>` discover the upstream surface at runtime via the standard MCP `tools/list` RPC, so the CLI never goes stale. `swiggy call <server> <tool> --input '<json>'` is the universal escape hatch — it works for every tool, present or future.
+**Layer B (generic)** is for agents and power users. `swiggy tools <server>` and `swiggy schema <server> <tool>` discover the live surface via MCP `tools/list`; `swiggy call <server> <tool> --input '<json>'` reaches every tool, present or future, with no code change.
 
-Both layers share the same `McpClient` and renderer pipeline. Layer A is just sugar.
+Both layers share `invokeTool`, the client and the renderers. Layer A is sugar plus input resolution.
 
 ## Key files
 
-
-| File                                           | Responsibility                                                |
-| ---------------------------------------------- | ------------------------------------------------------------- |
-| `src/cli.ts`                                   | commander setup, global flags, top-level error handling       |
-| `src/commands/common.ts`                       | shared `attachOutputOptions`, `callTool`, confirmation gating |
-| `src/commands/generic.ts`                      | Layer B (`servers`, `tools`, `schema`, `call`)                |
-| `src/commands/{food,instamart,dineout}.ts`     | Layer A ergonomic verbs                                       |
-| `src/commands/{auth,config,profile,doctor}.ts` | management commands                                           |
-| `src/lib/mcp.ts`                               | Streamable-HTTP MCP client (JSON-RPC + SSE), session, auth    |
-| `src/lib/auth.ts`                              | OAuth + PKCE flow, dynamic registration, token refresh        |
-| `src/lib/config.ts` + `profiles.ts`            | on-disk config + profile management                           |
-| `src/lib/aliases.ts`                           | verified upstream tool catalog + ergonomic alias table        |
-| `src/lib/output.ts`                            | renderer orchestration, brand color, spinner gating           |
-| `src/lib/renderers/{human,json,plain}.ts`      | three deterministic output renderers                          |
-| `src/lib/errors.ts`                            | typed `CliError` classes + stable exit code map               |
-| `src/lib/tty.ts`                               | machine-mode / color detection                                |
-
+| File | Responsibility |
+| --- | --- |
+| `src/cli.ts` | entry: builds the program; no-args in a TTY → `shell` |
+| `src/program.ts` | commander program factory (used by both the CLI and the shell) |
+| `src/commands/common.ts` | `attachOutputOptions`, `run`, `invokeTool`/`callTool`, `buildArgs`, address + coordinate resolution, error hints |
+| `src/commands/{food,instamart,dineout}.ts` | Layer A verbs with documented parameter names |
+| `src/commands/address.ts` | `addresses` / `create-address` / `delete-address` shared by Food and Instamart |
+| `src/commands/payments.ts` | `payment-options` / `payment-status --wait` / `confirm-order` / `report-error` per server, and `placeOrderWithPayment` |
+| `src/commands/generic.ts` | Layer B (`servers`, `tools`, `schema`, `call`) plus `docs` and `mcp-config` |
+| `src/commands/{auth,config,profile,doctor,shell}.ts` | management commands and the interactive session |
+| `src/lib/mcp.ts` | Streamable-HTTP MCP client: sessions, SSE, status mapping, rate-limit headers, envelope helpers |
+| `src/lib/auth.ts` | OAuth 2.1 + PKCE, RFC 9728/8414 discovery, dynamic client registration, shared token, browser open |
+| `src/lib/payments.ts` | pure payment-flow logic: `--pay` parsing, pending detection, per-server args, status classification, `waitForPayment` |
+| `src/lib/aliases.ts` | verified 51-tool catalog, alias table, destructive/write sets |
+| `src/lib/config.ts` · `profiles.ts` · `paths.ts` | on-disk config, profiles, endpoints, docs URLs, cache paths |
+| `src/lib/output.ts` | renderer orchestration, banner, `note()` on stderr |
+| `src/lib/renderers/{human,json,plain}.ts` | deterministic renderers; `pickList`/`chooseColumns` decide what becomes a table |
+| `src/lib/ui.ts` · `term.ts` | palette + colour downgrade, status line (synchronized output, OSC 9;4), OSC 8 links, Markdown-to-ANSI, terminal detection |
+| `src/lib/errors.ts` | typed `CliError` classes + stable exit-code map |
+| `src/lib/tty.ts` · `lazy.ts` · `version.ts` | machine-mode detection, lazy loading of UI deps, version from `package.json` |
 
 ## Design tenets
 
-1. **Structured first, rendered second.** Every command builds an envelope; renderers are pure functions of that envelope. This is what makes `--json` honest — the human and JSON paths cannot diverge.
-2. **Discover, don't hardcode.** Tool schemas are pulled from the server, not vendored.
-3. **Stable contracts.** Error codes, exit codes, and JSON shapes are documented and won't change without a major version.
-4. **Zero magic for agents.** No interactive prompts, no colors, no spinners when machine mode is detected (`--json`, `--plain`, `--no-interactive`, or non-TTY).
-5. **Least secret surface.** Tokens are stored at `~/.swiggy/auth.json` (mode `0600`). Never in env or argv.
-6. **Brand restraint.** Swiggy orange (`#FC8019`) is used only for the program name, headings, and table headers — never for body data.
-
+1. **Structured first, rendered second.** Every command builds an envelope; renderers are pure functions of it. The human and JSON paths cannot diverge.
+2. **Documented names, discovered schemas.** Layer A uses the parameter names Swiggy publishes; Layer B pulls schemas live. `swiggy doctor` reports drift between the bundled catalog and `tools/list`.
+3. **Stable contracts.** Error codes, exit codes and the envelope are documented and only change with a major version.
+4. **Zero magic for agents.** No prompts, colours or spinners in machine mode (`--json`, `--plain`, `--raw`, `--no-interactive`, or a non-TTY stdout). stdout carries data only; everything else goes to stderr.
+5. **Least secret surface.** Tokens live in `~/.swiggy/auth.json` (0600), never in env or argv. No telemetry.
+6. **Rate-limit hygiene.** One MCP session per server persisted across invocations; the payment poll honours Swiggy's cadence; the shell keeps everything warm in one process.
+7. **Brand restraint.** Swiggy orange is used for the program name, headings and table headers — never for body data.

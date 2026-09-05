@@ -1,134 +1,104 @@
 # AGENTS.md
 
-> Guidance for AI agents and automations using the `swiggy` CLI.
-> Format follows the [agents.md](https://agents.md/) convention.
+> Guidance for AI agents and automations using the `swiggy` CLI, and for coding agents working in this repository. Format follows the [agents.md](https://agents.md/) convention. The same rules are packaged as installable skills under [`skills/`](./skills) (`npx skills add HKTITAN/swiggy-cli`).
 
-## Mission
+## External docs — Swiggy Builders Club
 
-`swiggy` is a deterministic wrapper over Swiggy's three MCP servers (Food, Instamart, Dineout). It is intended to be used the same way an agent would use any other tool: pass arguments, read structured JSON, react to a stable error envelope and exit code. **Do not parse human prose** — always run the CLI in machine mode.
+This project integrates the official Swiggy MCP servers. Before writing code that touches Swiggy tool names, parameters, errors, limits or auth, fetch the authoritative docs:
 
-## Run modes
+- Index: https://mcp.swiggy.com/builders/llms.txt
+- Full text: https://mcp.swiggy.com/builders/llms-full.txt
+- Per page: append `.md` to any https://mcp.swiggy.com/builders/docs/... URL (e.g. `/docs/reference/food/search_menu.md`)
+- From the CLI: `swiggy docs reference/food/search_menu`
 
-Always pass these flags when scripting:
+Do not invent tool names or parameters. The bundled catalog in `src/lib/aliases.ts` and `skills/swiggy-mcp/references/tools.md` was verified on 2026-09-05 (51 tools: Food 20, Instamart 19, Dineout 12); the live page wins if they differ. `swiggy doctor` reports catalog drift.
 
-- `--json` — receive the canonical envelope on stdout, nothing else.
-- `--no-interactive` — never prompt; fail fast.
-- `--yes` — explicitly acknowledge destructive actions.
-- `--quiet` — suppress non-essential logs.
+## Using the CLI from an agent
 
-Example:
+Always pass `--json --no-interactive`. Then:
+
+1. Read `ok`. On `false`, branch on `error.code` (stable), never on `error.message`.
+2. Never add `--yes` on your own; exit 7 means ask the human first.
+3. Never retry `checkout` / `book` after an error; run `orders --active` / `status` first.
+4. Resolve `addressId` once (`swiggy <server> addresses --json`) or set `swiggy profile set default defaultAddressId <id>`.
 
 ```bash
-swiggy food search-restaurants --query "biryani" --city Delhi --json --no-interactive
+swiggy food search -q biryani --json --no-interactive
+swiggy call instamart search_products --input '{"addressId":"<id>","query":"milk"}' --json --no-interactive
 ```
 
-## Output contract
-
-Success:
+### Envelope
 
 ```json
-{
-  "ok": true,
-  "server": "food",
-  "tool": "search_restaurants",
-  "data": <tool payload>,
-  "meta": { "profile": "default" }
-}
+{ "ok": true, "server": "food", "tool": "search_restaurants", "data": <tool payload>,
+  "meta": { "profile": "default", "message": "<Swiggy's human message>", "rateLimit": { "limit": 70, "remaining": 61, "reset": 1720000060 }, "payment": { … } } }
+{ "ok": false, "error": { "code": "AUTH_REQUIRED", "message": "...", "hint": "...", "details": {} } }
 ```
 
-Failure:
+`data` is Swiggy's own `data` (the `{success,data,message}` wrapper is removed; `--raw` keeps it). `meta` may gain keys; ignore unknown ones.
 
-```json
-{ "ok": false, "error": { "code": "AUTH_REQUIRED", "message": "...", "details": {} } }
-```
+### `error.code` → exit code → action
 
-The shape is stable. New optional fields may be added under `meta`; do not assume `meta` is empty.
+| code | exit | action |
+| --- | ---: | --- |
+| `USAGE` | 2 | fix flags; `error.hint` says what is missing |
+| `AUTH_REQUIRED` / `AUTH_FAILED` | 3 | stop; ask the human to run `swiggy auth init` (browser + OTP; agents cannot do it) |
+| `NOT_FOUND` | 4 | tool not on server; `swiggy tools <server> --json` |
+| `NETWORK` | 5 | retry once after 2 s; then stop |
+| `MCP_ERROR` | 6 | Swiggy rejected the call (domain failure, `isError`, JSON-RPC error); surface `error.message`; never retry mutations |
+| `CONFIRMATION_REQUIRED` | 7 | ask the human; re-run with `--yes` only after explicit consent |
+| `CONFIG_ERROR` | 8 | broken config/profile |
+| `RATE_LIMITED` | 9 | wait `error.details.retryAfterSeconds`; never tight-loop |
+| `PAYMENT_FAILED` | 10 | read `meta.payment.outcome` / `error.hint`; see the `swiggy-pay` skill |
+| `UNKNOWN` | 1 | report |
 
-## Error codes → exit codes
+### Payments
 
+`checkout --pay cash` places immediately. `checkout --pay upi` returns `meta.payment.pending: true` with `bridgeUrl` (give it to the user) and `meta.payment.next` (the exact `payment-status --wait` command). `--pay upi --wait` does the whole loop and exits 0 only when the order is `PLACED`. Never tell a user an order is placed while `pending` is true. Food confirms with `orderId+addressId+lat+lng`; Instamart/Dineout with `orderId+paasId` — the CLI handles both. `--pay swiggypay` is valid only when `payment-options` lists it.
 
-| `error.code`                    | exit |
-| ------------------------------- | ---- |
-| (success)                       | 0    |
-| `UNKNOWN`                       | 1    |
-| `USAGE`                         | 2    |
-| `AUTH_REQUIRED` / `AUTH_FAILED` | 3    |
-| `NOT_FOUND`                     | 4    |
-| `NETWORK`                       | 5    |
-| `MCP_ERROR`                     | 6    |
-| `CONFIRMATION_REQUIRED`         | 7    |
-| `CONFIG_ERROR`                  | 8    |
-
-
-Branch on `error.code`, not on the message string.
-
-## Preferred command surface
-
-For agents, prefer **Layer B (generic)** — it's stable across upstream tool renames:
+### Discovery
 
 ```bash
 swiggy servers --json
-swiggy tools food --json
-swiggy schema food search_restaurants --json
-swiggy call food search_restaurants --input '{"query":"pizza"}' --json
+swiggy tools food --json          # live (auth); --offline for the bundled catalog
+swiggy schema food update_food_cart --json
 ```
 
-Use **Layer A (ergonomic)** only when you are confident in the alias mapping (see `src/lib/aliases.ts`).
+## Auth model
 
-## Discovery flow
-
-1. `swiggy servers --json` → list the three servers and current endpoints.
-2. `swiggy tools <server> --json` → live `tools/list`.
-3. `swiggy schema <server> <tool> --json` → live JSON Schema for arguments.
-4. Build arguments validated against that schema, then `swiggy call <server> <tool> --input '<json>'`.
-
-Never hard-code parameter names; always read them from the schema.
-
-## Auth
-
-Auth is interactive (browser-based OAuth + PKCE). An agent **cannot** run `swiggy auth init` headlessly. Detection pattern:
+OAuth 2.1 + PKCE against `https://mcp.swiggy.com/auth` with dynamic client registration. One browser login yields one token valid on all three servers, for 5 days; there are no refresh tokens yet, so expiry means re-running `swiggy auth init`. HTTP 401/419 and JSON-RPC `-32001` map to exit 3. Detect before doing work:
 
 ```bash
-swiggy auth status --json | jq -r '.data[] | select(.authenticated|not) | .server'
+swiggy auth status --json | jq -r '.data.servers[] | select(.authenticated|not) | .server'
 ```
 
-If any server is unauthenticated, ask the human operator to run `swiggy auth init --server <name>` and resume.
-
-For headless environments, the operator may pre-provision tokens by setting:
-
-- `SWIGGY_OAUTH_CLIENT_ID`, `SWIGGY_OAUTH_CLIENT_SECRET`
-- `SWIGGY_HOME` pointing at a directory with a pre-populated `auth.json`
+Headless hosts: pre-provision `~/.swiggy/auth.json` from a workstation and point `SWIGGY_HOME` at it.
 
 ## Safety rails
 
-- These tools place real orders. `place_food_order`, `checkout`, `book_table`, `flush_food_cart`, `clear_cart`, and `delete_address` are gated. Without `--yes` in non-interactive mode they exit `7` (`CONFIRMATION_REQUIRED`).
-- COD orders are not reversible via the MCP API. Always confirm cart state with `swiggy food cart --json` (or `instamart cart`) before checkout.
-- The upstream manifest warns against using the Swiggy mobile app concurrently — it can invalidate the agent's session.
-
-## Idempotency & retries
-
-- Read tools (`search_*`, `get_*`, `track_*`) are safe to retry.
-- Mutation tools (`update_*_cart`, `apply_food_coupon`) are **not** idempotent unless the upstream tool documents it. Treat retries as additive.
-- `place_food_order`, `book_table`, `checkout` should never be retried automatically on `MCP_ERROR` — escalate to the human.
+- Gated tools: `place_food_order`, `checkout`, `book_table`, `cancel_booking`, `flush_food_cart`, `clear_cart`, `delete_address`.
+- Orders cannot be cancelled via the API; tell the user to call 080-67466729.
+- Read the cart before every mutation and before checkout; carts are server-side and the user may edit them in the app.
+- Rate limits: 70 req/min per user per server (30 for writes). The CLI reuses one MCP session across invocations; do not spawn parallel `swiggy` processes against the same server.
+- Poll `track`/`delivery-status` no faster than every 10 s.
 
 ## Networking
 
-- Endpoints: `https://mcp.swiggy.com/{food,im,dineout}` (overridable via `SWIGGY_<SERVER>_URL`).
-- Transport: Streamable HTTP MCP (JSON or SSE).
-- Auth header: `Authorization: Bearer <token>` (managed by the CLI).
+- Endpoints `https://mcp.swiggy.com/{food,im,dineout}`; override with `SWIGGY_<SERVER>_URL` or profile `endpoints`.
+- Transport: MCP Streamable HTTP (JSON or SSE), protocol `2025-06-18`, `Authorization: Bearer` managed by the CLI, `User-Agent: swiggy-cli/<version>`.
+- No telemetry. Outbound calls go only to `mcp.swiggy.com` (MCP, OAuth, docs).
 
-## Extending
+## Working in this repository
 
-To add a new ergonomic verb when Swiggy ships a new tool, edit `src/lib/aliases.ts` and add a subcommand under `src/commands/<server>.ts`. The generic `call` path requires no code change.
+- `npm ci && npm run lint && npm test && npm run validate:skills` must pass. `npm test` builds `dist/` first; `test/cli.test.ts` exercises the built binary against `test/helpers/mock-mcp.ts`.
+- Adding a tool alias: `src/lib/aliases.ts` (catalog + alias + destructive set) → a verb in `src/commands/<server>.ts` using `buildArgs`/`compact` with the **documented camelCase names** → `wiki/commands.md` → skills that mention it. The test suite fails if a catalog tool has no alias.
+- Skills follow the Agent Skills spec: `skills/<name>/SKILL.md`, `name` = directory, description says when to use, strict wording, the "why" next to every rule, under 500 lines. `scripts/validate-skills.mjs` enforces the mechanics.
+- Plugin manifests: `plugin.json` + `mcp.json` (Agent Plugins 1.0.0), `.claude-plugin/` + `.mcp.json` (Claude Code). Keep versions in sync with `package.json`.
+
+## Research memory: `llm-wiki/`
+
+`llm-wiki/` is an LLM-maintained wiki (Karpathy's pattern) holding everything learned about Swiggy MCP, dated and sourced. Before changing behaviour that depends on upstream facts (parameters, limits, auth, payments), read `llm-wiki/index.md` and the relevant page; after fetching new Swiggy docs or announcements, follow `llm-wiki/SCHEMA.md` to ingest them (source page → entity/concept updates → index → log). Open gaps live in `llm-wiki/wiki/synthesis/open-questions.md`.
 
 ## Where the CLI keeps state
 
-- `~/.swiggy/config.json` — profiles, defaults, endpoint overrides.
-- `~/.swiggy/auth.json` — OAuth tokens, mode `0600`.
-- Override base path with `SWIGGY_HOME`.
-
-Both files are JSON; agents may inspect them but should not write directly. Use `swiggy config show --json` and `swiggy auth status --json`.
-
-## Telemetry
-
-None. The CLI makes no outbound calls beyond the three configured Swiggy MCP endpoints and the OAuth metadata / token endpoints they advertise.
+`~/.swiggy/` (or `SWIGGY_HOME`): `config.json`, `auth.json` (0600), `history`, `cache/sessions.json`, `cache/recent.json` (numbered rows from the last listings + follow-up context), `cache/dineout-coords.json`. Inspect with `swiggy config show --json`; do not write these files directly. Agents should pass explicit ids rather than row numbers unless they issued the listing themselves in the same session.

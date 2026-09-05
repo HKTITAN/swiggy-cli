@@ -3,72 +3,86 @@
 ## `swiggy doctor` is the first stop
 
 ```bash
-swiggy doctor --json
+swiggy doctor --json          # add --offline to skip network checks
 ```
 
-Each check has `{ check, ok, detail }`. Failures print non-zero exit. Common ones below.
+Each check is `{ check, ok, detail, soft? }`. Hard failures exit 1; `soft` rows (not signed in, catalog drift, terminal info) are informational. `doctor` also reports whether Swiggy's live `tools/list` matches the bundled catalog — if it says "new upstream: …", the tool is still usable via `swiggy call`; open an issue so an ergonomic verb can be added.
 
-## `AUTH_REQUIRED` on every call
+## `AUTH_REQUIRED` / exit 3
 
-You haven't run the OAuth flow, or the stored token expired and refresh failed. Re-auth:
+- Never signed in, or the 5-day access token expired (Swiggy does not issue refresh tokens yet):
 
 ```bash
-swiggy auth init --server food
+swiggy auth init
 swiggy auth status --json
 ```
 
-If `auth.json` looks corrupted, just delete it: `rm ~/.swiggy/auth.json`.
+- `AUTH_FAILED` "rejected by …" with a token → the session was revoked (logging out of the Swiggy app, security event). Re-run `auth init`.
+- HTTP 419 → session revoked; same fix.
+- Corrupted `auth.json` → delete it and re-run `auth init`.
 
-## OAuth metadata discovery fails
+## "Missing address id" (exit 2) in `--json` mode
 
-The CLI hits `<server>/.well-known/oauth-authorization-server`. From a normal machine:
+Food/Instamart tools need `addressId` and the CLI refuses to guess in machine mode. Either pass `--address-id <id>` (from `swiggy food addresses --json`) or set it once:
 
 ```bash
-curl -i https://mcp.swiggy.com/food/.well-known/oauth-authorization-server
+swiggy profile set default defaultAddressId <id>
 ```
 
-If this 404s or your network blocks it, set `SWIGGY_OAUTH_*` env vars to point at a pre-registered client and ask Swiggy support for the issuer URLs.
+## Dineout "Missing coordinates"
 
-## Tool not found
+Dineout `details`/`slots`/`cart`/`book` need `latitude`/`longitude`. Saved locations do not carry them; a search does:
 
-The Layer A alias may be stale. Confirm against the live list:
+```bash
+swiggy dineout search -q italian --address-id <locationId>     # the response's coordinates are remembered
+swiggy dineout slots --restaurant-id <id> --date 2026-09-06     # reuses them
+```
+
+Or pass `--lat/--lng`, or set `defaultLat`/`defaultLng` on the profile.
+
+## Payment stuck on pending
+
+- `--wait` timed out (exit 10, `outcome: timeout`) → `confirm_order` was called once; check `swiggy <server> orders --active` — a late success reconciles server-side. Do not place again until you know.
+- Food `payment-status --wait` needs `--address-id --lat --lng` echoed from the checkout response; without them Swiggy cannot reconcile the order. The pending checkout envelope's `meta.payment.next` has the exact command.
+- `outcome: cart_changed` → the order was not placed; review the cart and place again.
+
+## `RATE_LIMITED` / exit 9
+
+You exceeded 70 req/min (30/min for writes) on one server, or re-initialized too often. Wait `error.details.retryAfterSeconds`. Use `swiggy shell` for bursts of commands, and do not run several `swiggy` processes in parallel against one server.
+
+## Tool not found (exit 4)
 
 ```bash
 swiggy tools food --json | jq -r '.data[].name'
+swiggy call food <name> --input '{…}'
 ```
 
-If a tool was renamed, file a PR to update `src/lib/aliases.ts`. In the meantime:
+`cancel_booking` is rolling out gradually and may be absent from your account's `tools/list`.
+
+## OAuth metadata discovery fails
 
 ```bash
-swiggy call food <new-name> --input '{...}'
+curl -s https://mcp.swiggy.com/.well-known/oauth-authorization-server
 ```
+
+If this is not JSON, your network is intercepting TLS or blocking the host. The CLI tries RFC 9728 and RFC 8414 locations; `--client-id` is only needed if dynamic registration is unavailable.
 
 ## CI hangs on a confirmation prompt
 
-You hit a destructive tool without `--yes`. Either:
-
-```bash
-swiggy food checkout --no-interactive --yes
-```
-
-…or split your script: have a human approve checkout out-of-band.
+You hit a destructive tool without `--yes` while stdin was a TTY. Pass `--no-interactive --yes` (or `--no-interactive` alone to fail fast with exit 7).
 
 ## `npx swiggy` doesn't find the binary
 
-The npm package is `swiggy-cli`, but the binary it installs is `swiggy`. With `npx` you have to specify both:
+The package is `swiggy-cli`; the binary is `swiggy`:
 
 ```bash
 npx -p swiggy-cli swiggy --help
-# or pin a version:
-npx --package swiggy-cli@latest swiggy --help
 ```
 
-After `npm i -g swiggy-cli` (no `-p` needed), you can just type `swiggy` directly.
+## Colours / links look wrong
 
-## Streaming responses look truncated
-
-The CLI consumes the first JSON-RPC response frame from an SSE stream and returns. For long-running tools that stream multiple frames, use `--raw` and parse the SSE yourself, or call the server directly during development.
+`NO_COLOR=1` disables colour, `FORCE_COLOR=1|2|3` forces a level. The CLI upgrades to truecolor under tmux/SSH when it recognises the terminal (`TERM_PROGRAM`, iTerm/Kitty/WezTerm/Ghostty/Windows Terminal env vars). OSC 8 links render as plain URLs on terminals without support.
 
 ## Mobile app conflicts
 
-Per the upstream manifest, do not open the Swiggy mobile app while running these commands — the session can invalidate. If your tokens stop working unexpectedly, log out of the mobile app and re-auth: `swiggy auth init`.
+Using the Swiggy app while the CLI runs can invalidate the session (401/419). Re-run `swiggy auth init`.
