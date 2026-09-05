@@ -9,7 +9,7 @@ Append-only. `grep "^## \[" log.md | tail -5` shows recent activity.
 - New: entities/swiggy-mcp, food-server, instamart-server, dineout-server, payment-stage, builders-club; concepts/oauth-on-swiggy-mcp, rate-limits-and-sessions, error-taxonomy, cart-state, headless-payments; sources/swiggy-builders-docs, upi-payments-blog, create-address-ga-blog, builders-club-launch-blog.
 - Contradictions recorded: coding-agents page says "Food exposes 14 tools" (reference says 20); changelog says "Food (18 tools)" and "MCP-layer rate limiting not enforced" while rate-limits page says enforced; ship-to-production says 429 not seen "in v1.0"; recipe pages use `items`/`itemId`/`code`/`lat`/`bookingId` while reference uses `cartItems`/`menu_item_id`/`couponCode`/`latitude`/`orderId`. Resolved in favour of the reference.
 
-## [2026-09-05] ingest | live captures (OAuth metadata, unauthenticated probe)
+## [2026-09-05] ingest | live captures (OAuth metadata, initialize handshake capture)
 - Confirmed dynamic client registration endpoint, scopes, S256, refresh grant advertised; `initialize` requires auth; resource-metadata URL in WWW-Authenticate serves HTML at the origin form. → sources/live-captures-2026-09-05, concepts/oauth-on-swiggy-mcp.
 
 ## [2026-09-05] ingest | Swiggy Money on MCP tweet + manifest issue #49

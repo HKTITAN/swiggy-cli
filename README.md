@@ -1,10 +1,14 @@
 <div align="center">
 
-<img src="./assets/swiggy-logo.svg" alt="Swiggy" width="84" height="84">
+<a href="https://github.com/HKTITAN/swiggy-cli"><img src="./assets/banner.png" alt="swiggy-cli 0.2.0 — order food, groceries and tables from your terminal, or your agent's tool loop. Powered by Swiggy." width="100%"></a>
+
+<img src="./assets/swiggy-logo.svg" alt="Swiggy" width="64" height="64">
 
 # swiggy-cli
 
 **Human- and agent-friendly CLI for the official [Swiggy MCP](https://mcp.swiggy.com/builders/) servers — Food, Instamart, Dineout.**
+
+**Powered by Swiggy.**
 
 [![npm](https://img.shields.io/npm/v/swiggy-cli?color=FF5200&label=npm&logo=npm)](https://www.npmjs.com/package/swiggy-cli)
 [![CI](https://github.com/HKTITAN/swiggy-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/HKTITAN/swiggy-cli/actions/workflows/ci.yml)
@@ -22,7 +26,7 @@ swiggy — order food, groceries and tables from your terminal, or from your age
 
 `swiggy-cli` wraps the three Model Context Protocol servers Swiggy runs at `mcp.swiggy.com` (`/food`, `/im`, `/dineout`). It feels native in a developer's terminal **and** inside an agent pipeline: every command emits one stable JSON envelope, exit codes are deterministic, destructive tools are gated, and a generic `call` escape hatch reaches every tool the servers expose — today's 51 and whatever ships next.
 
-> **Powered by [Swiggy MCP](https://mcp.swiggy.com/builders/).** This is an **unofficial, community-built CLI**. It is not the official Swiggy CLI and is not affiliated with, endorsed by, or sponsored by Bundl Technologies Pvt. Ltd. / Swiggy. The Swiggy name and logo are trademarks of their owner and are used here only to identify the service this tool talks to.
+> **Powered by [Swiggy MCP](https://mcp.swiggy.com/builders/).** This is an **independent, community-built CLI**, not an official Swiggy product. The Swiggy name and mark are trademarks of Swiggy Limited, shown unmodified per Swiggy's [brand guidelines](https://mcp.swiggy.com/builders/docs/operate/support/#co-branding) to identify the service this tool integrates with. Listings, prices and availability come from Swiggy and are shown as received.
 
 **Links** · [Builder docs](https://mcp.swiggy.com/builders/docs/) · [Tool reference](https://mcp.swiggy.com/builders/docs/reference/) · [Wiki](./wiki) · [AGENTS.md](./AGENTS.md) · [Skills](./skills) · [Changelog](./CHANGELOG.md)
 
@@ -285,4 +289,4 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) and [`wiki/releasing.md`](./wiki/releas
 
 ## License
 
-[MIT](./LICENSE). Community-maintained; not affiliated with Bundl Technologies / Swiggy. The upstream MCP servers are operated by Swiggy under their own terms — see <https://mcp.swiggy.com/builders/docs/>.
+[MIT](./LICENSE) for this CLI's code. Powered by Swiggy: the upstream MCP servers, listings and content are operated and owned by Swiggy Limited under their own terms — see <https://mcp.swiggy.com/builders/docs/>. This is an independent, community-built tool, not an official Swiggy product.

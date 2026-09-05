@@ -8,7 +8,7 @@ Swiggy's MCP platform (Food, Instamart, Dineout servers; Builders Club; payments
 
 ## Layers
 
-1. `raw/` — immutable. Snapshots of docs, blog posts, tweets, live captures (OAuth metadata, HTTP probes), notes taken while reading code. Name files `YYYY-MM-DD-<slug>.<ext>`. Large upstream files are *not* vendored; `raw/README.md` records the URL and the fetch command and the date/size seen. Never edit a raw file; add a new one.
+1. `raw/` — immutable. Snapshots of docs, blog posts, tweets, live captures (OAuth metadata, HTTP handshake captures), notes taken while reading code. Name files `YYYY-MM-DD-<slug>.<ext>`. Large upstream files are *not* vendored; `raw/README.md` records the URL and the fetch command and the date/size seen. Never edit a raw file; add a new one.
 2. `wiki/` — LLM-owned. Four folders:
    - `entities/` — one page per thing that has an identity (a server, a tool family, a product, a project, a spec).
    - `concepts/` — one page per mechanism (how auth works, how carts behave, how rate limits are counted).
@@ -64,7 +64,7 @@ Check: contradictions between pages; facts older than the newest source that cou
 ## Sources of truth, in order
 
 1. `https://mcp.swiggy.com/builders/docs/reference/<server>/<tool>.md` (regenerated from Swiggy's source on every change)
-2. Live captures in `raw/` (metadata endpoints, HTTP probes) — what the servers actually do
+2. Live captures in `raw/` (metadata endpoints, HTTP handshake captures) — what the servers actually do
 3. Swiggy blog posts and changelog (dated announcements)
 4. Swiggy prose pages (recipes, start guides) — useful but drift; the coding-agents page is known-stale
 5. Third-party posts and tweets — for dates and intent only

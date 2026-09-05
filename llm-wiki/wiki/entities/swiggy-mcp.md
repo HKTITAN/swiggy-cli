@@ -9,8 +9,8 @@ Swiggy's commerce platform exposed as Model Context Protocol servers: one Stream
 
 ## Facts
 - Three servers: [Food](food-server.md) `/food` (20 tools), [Instamart](instamart-server.md) `/im` (19), [Dineout](dineout-server.md) `/dineout` (12) — 51 tools (reference index, 2026-09-05). Other pages on the same site still say 49, 35+ or 18+ (see Contradictions).
-- Transport: Streamable HTTP per MCP spec; protocol version `2025-06-18` accepted; JSON or SSE responses (docs; probe 2026-09-05).
-- Auth required even for `initialize` (probe 2026-09-05). Session token shared across servers (docs, multi-turn-state page).
+- Transport: Streamable HTTP per MCP spec; protocol version `2025-06-18` accepted; JSON or SSE responses (docs; handshake capture 2026-09-05).
+- Auth required even for `initialize` (handshake capture 2026-09-05). Session token shared across servers (docs, multi-turn-state page).
 - Envelope: `{ success, data, message? }` / `{ success:false, error:{ message, reportLink?, reportHint? } }`; JSON-RPC `-32001` for auth, `-32603` internal (reference/errors, 2026-09-05).
 - Versioning: SemVer at server level; `implementation.version` in `initialize`; 6-month deprecation window; `_meta.swiggy.deprecation` planned; URL pinning `/v1/food`, `/v2/food` planned (operate/versioning, 2026-09-05).
 - Widgets: Food widget registry wired (`hasWidgets: true`), hosted iframe layer "v1.1"; Instamart/Dineout widgets "v1.2" (build/widgets, changelog).

@@ -5,7 +5,7 @@ updated: 2026-09-05
 sources: []
 tags: [source, capture, auth]
 ---
-Raw: `raw/2026-09-05-swiggy-oauth-metadata.json`, `raw/2026-09-05-swiggy-mcp-unauth-probe.md`. What the production endpoints actually returned on 2026-09-05, independent of the docs.
+Raw: `raw/2026-09-05-swiggy-oauth-metadata.json`, `raw/2026-09-05-swiggy-mcp-initialize-capture.md`. What the production endpoints actually returned on 2026-09-05, independent of the docs.
 
 ## Claims
 - Authorization-server metadata confirms: issuer `https://mcp.swiggy.com/auth`, DCR endpoint `/auth/register`, scopes `mcp:tools mcp:resources mcp:prompts`, S256, grants `authorization_code` + `refresh_token`, token auth methods `none | client_secret_post | client_secret_basic`.

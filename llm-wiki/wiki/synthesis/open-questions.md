@@ -21,4 +21,4 @@ Things the sources do not settle, each with the action that would settle it. Lin
 
 ## Resolved this session
 - Dynamic client registration exists (live metadata) — resolved 2026-09-05.
-- `initialize` needs auth — resolved 2026-09-05 (probe).
+- `initialize` needs auth — resolved 2026-09-05 (handshake capture).

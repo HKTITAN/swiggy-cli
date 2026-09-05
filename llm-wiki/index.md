@@ -33,7 +33,7 @@ Catalogue of every page. One line each; the agent reads this first when answerin
 - [builders-club-launch-blog](wiki/sources/builders-club-launch-blog.md) — launch post (2026-04-17).
 - [swiggy-money-tweet](wiki/sources/swiggy-money-tweet.md) — @aannuujX announcement (2026-09-04) + GitHub issue #49.
 - [swiggy-manifest-readme](wiki/sources/swiggy-manifest-readme.md) — github.com/Swiggy/swiggy-mcp-server-manifest (stale but authoritative for redirect URIs).
-- [live-captures-2026-09-05](wiki/sources/live-captures-2026-09-05.md) — OAuth metadata + unauthenticated probe.
+- [live-captures-2026-09-05](wiki/sources/live-captures-2026-09-05.md) — OAuth metadata + initialize handshake capture.
 - [agent-skills-spec](wiki/sources/agent-skills-spec.md) — agentskills.io + skills.sh.
 - [agent-plugins-spec](wiki/sources/agent-plugins-spec.md) — agent-plugins.org.
 - [how-to-write-good-skills](wiki/sources/how-to-write-good-skills.md) — Emil Kowalski's rules.

@@ -24,8 +24,7 @@ export function buildProgram(): Command {
     .description(
       `${paint(PALETTE.orange, "swiggy", undefined, true)} — human- and agent-friendly CLI for the official Swiggy MCP servers.\n` +
         `Food, Instamart and Dineout: 51 tools, UPI / Swiggy Money payments, stable JSON output, one shared login.\n\n` +
-        `Powered by Swiggy MCP (${DOCS.base}/). Unofficial community CLI — not affiliated with or endorsed by\n` +
-        `Bundl Technologies / Swiggy.`
+        `Powered by Swiggy (${DOCS.base}/). Independent, community-built CLI — not an official Swiggy product.`
     )
     .version(VERSION, "-v, --version")
     .option("--json", "emit JSON envelope on stdout")

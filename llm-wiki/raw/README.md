@@ -7,7 +7,7 @@ Add, never edit. Name `YYYY-MM-DD-<slug>.<ext>`. Large upstream documents are re
 | `https://mcp.swiggy.com/builders/llms-full.txt` (not vendored) | every Swiggy Builders Club docs page concatenated: start, build recipes, operate, reference for 51 tools, 3 blog posts | 2026-09-05 | 418,885 bytes |
 | `https://mcp.swiggy.com/builders/llms.txt` (not vendored) | one-line index of the above | 2026-09-05 | 12,845 bytes |
 | `2026-09-05-swiggy-oauth-metadata.json` | live capture of `/.well-known/oauth-authorization-server` and the Food protected-resource metadata | 2026-09-05 | — |
-| `2026-09-05-swiggy-mcp-unauth-probe.md` | live capture: unauthenticated `initialize` against `/food` (401 + WWW-Authenticate), CloudFront headers | 2026-09-05 | — |
+| `2026-09-05-swiggy-mcp-initialize-capture.md` | live capture: unauthenticated `initialize` against `/food` (401 + WWW-Authenticate), CloudFront headers | 2026-09-05 | — |
 | `2026-09-04-swiggy-money-on-mcp-tweet.md` | @aannuujX announcing "Swiggy Money on MCP" (transcribed) | 2026-09-04 | — |
 | `2026-09-05-swiggy-manifest-readme.md` | notes on github.com/Swiggy/swiggy-mcp-server-manifest README (redirect URI allowlist, client configs) | 2026-09-05 | — |
 | `2026-09-05-swiggy-money-github-issue-49.md` | notes on Swiggy/swiggy-mcp-server-manifest#49 (request for Swiggy Money payments) | 2026-09-05 | — |
