@@ -1,0 +1,93 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" font-family="Segoe UI, Inter, -apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <radialGradient id="glow" cx="18%" cy="30%" r="70%">
+      <stop offset="0" stop-color="#FF5200" stop-opacity="0.22"/>
+      <stop offset="0.55" stop-color="#FF5200" stop-opacity="0.04"/>
+      <stop offset="1" stop-color="#0E0F12" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="term" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#16181D"/>
+      <stop offset="1" stop-color="#121418"/>
+    </linearGradient>
+    <clipPath id="mark"><rect width="60" height="60" rx="14"/></clipPath>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#000" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+
+  <rect width="1600" height="900" fill="#0E0F12"/>
+  <rect width="1600" height="900" fill="url(#glow)"/>
+
+  <!-- grid texture -->
+  <g stroke="#FFFFFF" stroke-opacity="0.025">
+    <path d="M0 150H1600M0 300H1600M0 450H1600M0 600H1600M0 750H1600"/>
+    <path d="M200 0V900M400 0V900M600 0V900M800 0V900M1000 0V900M1200 0V900M1400 0V900"/>
+  </g>
+
+  <!-- Swiggy mark -->
+  <g transform="translate(96 96) scale(1.6)">
+    <g clip-path="url(#mark)">
+      <path fill="#FF5200" d="M0 30C0 17.034 0 10.554 3.498 6.132a16.086 16.086 0 0 1 2.634-2.634C10.548 0 17.034 0 30 0s19.446 0 23.868 3.498c.978.774 1.86 1.656 2.634 2.634C60 10.548 60 17.034 60 30s0 19.446-3.498 23.868a16.086 16.086 0 0 1-2.634 2.634C49.452 60 42.966 60 30 60s-19.446 0-23.868-3.498a16.086 16.086 0 0 1-2.634-2.634C0 49.452 0 42.966 0 30Z"/>
+      <text x="30" y="43" text-anchor="middle" font-size="36" font-weight="800" fill="#fff" font-family="Gilroy, Inter, Segoe UI, Arial, sans-serif">S</text>
+    </g>
+  </g>
+
+  <!-- wordmark -->
+  <text x="216" y="146" font-size="64" font-weight="800" fill="#FFFFFF" letter-spacing="-1.5">swiggy<tspan fill="#FF5200">-cli</tspan></text>
+  <rect x="216" y="168" width="118" height="34" rx="17" fill="#FF5200" fill-opacity="0.16" stroke="#FF5200" stroke-opacity="0.6"/>
+  <text x="275" y="192" text-anchor="middle" font-size="19" font-weight="700" fill="#FFB187" font-family="Consolas, Menlo, monospace">v0.2.0</text>
+
+  <!-- headline -->
+  <text x="96" y="286" font-size="44" font-weight="700" fill="#FFFFFF">Order food, groceries &amp; tables</text>
+  <text x="96" y="338" font-size="44" font-weight="700" fill="#FFFFFF">from your terminal —</text>
+  <text x="96" y="390" font-size="44" font-weight="700" fill="#FF5200">or your agent's tool loop.</text>
+
+  <!-- feature list -->
+  <g font-size="22" fill="#C7CBD2">
+    <text x="96" y="460">✦  51 tools across Food, Instamart &amp; Dineout</text>
+    <text x="96" y="500">✦  UPI &amp; Swiggy Money payments, headless</text>
+    <text x="96" y="540">✦  One login, numbered results, native views</text>
+    <text x="96" y="580">✦  Stable JSON + exit codes for agents</text>
+    <text x="96" y="620">✦  14 skills · Agent Plugins · Claude Code plugin</text>
+  </g>
+
+  <!-- install -->
+  <rect x="96" y="668" width="560" height="52" rx="10" fill="#1A1D22" stroke="#2A2E35"/>
+  <text x="118" y="702" font-size="21" fill="#E8EAED" font-family="Consolas, Menlo, monospace"><tspan fill="#8A8F98">$</tspan> npm i -g swiggy-cli</text>
+  <rect x="96" y="732" width="560" height="52" rx="10" fill="#1A1D22" stroke="#2A2E35"/>
+  <text x="118" y="766" font-size="21" fill="#E8EAED" font-family="Consolas, Menlo, monospace"><tspan fill="#8A8F98">$</tspan> npx skills add HKTITAN/swiggy-cli</text>
+
+  <text x="96" y="840" font-size="16" fill="#6C717A">Unofficial community CLI over the official Swiggy MCP servers · github.com/HKTITAN/swiggy-cli</text>
+
+  <!-- terminal window -->
+  <g transform="translate(760 120)" filter="url(#shadow)">
+    <rect width="744" height="660" rx="16" fill="url(#term)" stroke="#2A2E35"/>
+    <rect width="744" height="44" rx="16" fill="#1C1F25"/>
+    <rect y="28" width="744" height="16" fill="#1C1F25"/>
+    <circle cx="26" cy="22" r="7" fill="#FF5F57"/><circle cx="48" cy="22" r="7" fill="#FEBC2E"/><circle cx="70" cy="22" r="7" fill="#28C840"/>
+    <text x="372" y="28" text-anchor="middle" font-size="15" fill="#8A8F98" font-family="Consolas, Menlo, monospace">swiggy — zsh</text>
+
+    <g font-family="Consolas, Menlo, monospace" font-size="18" xml:space="preserve" style="white-space:pre">
+      <text x="28" y="86" fill="#E8EAED"><tspan fill="#FF5200" font-weight="700">swiggy</tspan> <tspan fill="#8A8F98">›</tspan> food search biryani</text>
+      <text x="28" y="120" fill="#FF5200" font-weight="700">Restaurants <tspan fill="#8A8F98" font-weight="400">2 for "biryani"</tspan></text>
+      <text x="28" y="152" fill="#FF5200">#   restaurant          rating   delivery    status</text>
+      <text x="28" y="180" fill="#E8EAED">1   Paradise Biryani    4.4★     25-30 min   <tspan fill="#2FBF71">open</tspan></text>
+      <text x="28" y="208" fill="#E8EAED">2   Behrouz Biryani     4.2★     35 min      <tspan fill="#E8A317">closed · 11:00 AM</tspan></text>
+      <text x="28" y="240" fill="#8A8F98">next: swiggy food menu &lt;#&gt;</text>
+
+      <text x="28" y="292" fill="#E8EAED"><tspan fill="#FF5200" font-weight="700">swiggy</tspan> <tspan fill="#8A8F98">›</tspan> food menu 1</text>
+      <text x="28" y="324" fill="#E8EAED"><tspan fill="#2FBF71">✓</tspan> Loading the menu <tspan fill="#8A8F98">· food/get_restaurant_menu 412ms</tspan></text>
+      <text x="28" y="352" fill="#E8EAED">1   <tspan fill="#2FBF71">●</tspan> Paneer Biryani        ₹299</text>
+      <text x="28" y="380" fill="#E8EAED">2   <tspan fill="#E5484D">●</tspan> Chicken Dum Biryani   ₹349   <tspan fill="#8A8F98">bestseller</tspan></text>
+
+      <text x="28" y="432" fill="#E8EAED"><tspan fill="#FF5200" font-weight="700">swiggy</tspan> <tspan fill="#8A8F98">›</tspan> food add 2 --qty 2</text>
+      <text x="28" y="464" fill="#E8EAED"><tspan fill="#2FBF71">✓</tspan> Updating your cart <tspan fill="#8A8F98">830ms</tspan></text>
+      <text x="28" y="492" fill="#E8EAED">Your cart <tspan fill="#8A8F98">Paradise Biryani · Koramangala</tspan></text>
+      <text x="28" y="520" fill="#E8EAED">2 × Chicken Dum Biryani            ₹698</text>
+      <text x="28" y="548" fill="#FF5200" font-weight="700">To pay                             ₹750</text>
+
+      <text x="28" y="600" fill="#E8EAED"><tspan fill="#FF5200" font-weight="700">swiggy</tspan> <tspan fill="#8A8F98">›</tspan> food checkout --pay upi --wait</text>
+      <text x="28" y="632" fill="#E8EAED"><tspan fill="#2FBF71">✓</tspan> payment confirmed <tspan fill="#8A8F98">1m 12s</tspan>   <tspan fill="#2FBF71">Order placed</tspan> · ord_84213</text>
+    </g>
+  </g>
+</svg>
