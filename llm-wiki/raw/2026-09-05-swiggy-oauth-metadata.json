@@ -1,0 +1,28 @@
+{
+  "capturedAt": "2026-09-05T06:05:00Z",
+  "authorizationServerMetadata": {
+    "url": "https://mcp.swiggy.com/.well-known/oauth-authorization-server",
+    "body": {
+      "issuer": "https://mcp.swiggy.com/auth",
+      "authorization_endpoint": "https://mcp.swiggy.com/auth/authorize",
+      "token_endpoint": "https://mcp.swiggy.com/auth/token",
+      "registration_endpoint": "https://mcp.swiggy.com/auth/register",
+      "scopes_supported": ["mcp:tools", "mcp:resources", "mcp:prompts"],
+      "response_types_supported": ["code"],
+      "grant_types_supported": ["authorization_code", "refresh_token"],
+      "code_challenge_methods_supported": ["S256"],
+      "token_endpoint_auth_methods_supported": ["none", "client_secret_post", "client_secret_basic"]
+    }
+  },
+  "protectedResourceMetadata": {
+    "url": "https://mcp.swiggy.com/food/.well-known/oauth-protected-resource",
+    "body": {
+      "resource": "https://mcp.swiggy.com/food",
+      "authorization_servers": ["https://mcp.swiggy.com/auth"],
+      "scopes_supported": ["mcp:tools", "mcp:resources", "mcp:prompts"],
+      "bearer_methods_supported": ["header"],
+      "resource_signing_alg_values_supported": ["RS256"]
+    },
+    "note": "https://mcp.swiggy.com/.well-known/oauth-protected-resource (origin form) returned the swiggy.com HTML homepage, not JSON."
+  }
+}
