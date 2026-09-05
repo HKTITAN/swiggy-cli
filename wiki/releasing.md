@@ -17,12 +17,15 @@ Pick one of two publish paths; the workflow supports both.
 gh workflow run release.yml -R HKTITAN/swiggy-cli -f tag=v0.2.0
 ```
 
-**Publishing locally** (no provenance attestation, but immediate):
+**Publishing locally** (no provenance attestation, but immediate). This is how 0.2.0 shipped on 2026-09-05:
 
 ```bash
-npm login                      # browser login; needs your npm 2FA
-npm ci && npm test && npm publish --access public
+npm login                                          # browser login; needs your npm 2FA
+npm ci && npm test
+npm publish --access public --provenance=false     # publishConfig requests provenance, which only CI can produce
 ```
+
+With 2FA on the account, npm prints a browser URL (or opens it) and **stages** the version until you approve it there; approve within a few minutes. If a later attempt says `Cannot publish over previously staged version`, the earlier one is still waiting for approval — approve it on npmjs.com (Staged Packages tab) or, with npm ≥ 12, `npx npm@latest stage list swiggy-cli` / `stage approve <id>`. Do not bump the version to work around it. Verify with `npm view swiggy-cli version` and a fresh `npm install swiggy-cli@<version>` in an empty directory that has its own `package.json` (npm otherwise resolves against any parent project).
 
 ## Cutting a release
 
