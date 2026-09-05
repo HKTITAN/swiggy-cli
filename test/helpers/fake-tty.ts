@@ -60,7 +60,7 @@ export function stripAnsi(s: string): string {
 }
 
 /** Poll until `pred` is true (default 8 s), otherwise throw with the latest output for diagnosis. */
-export async function until(pred: () => boolean, what: string, diag: () => string, timeoutMs = 8000): Promise<void> {
+export async function until(pred: () => boolean, what: string, diag: () => string, timeoutMs = 5000): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeoutMs) {
     if (pred()) return;

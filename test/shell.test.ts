@@ -66,8 +66,9 @@ describe("swiggy shell", () => {
       stdin.write("y\n");
       await until(() => mock.state.calls.some((c) => c.name === "flush_food_cart"), "flush called", out);
 
+      // sent immediately, while the previous command may still be finishing: it must be queued, not dropped
       stdin.write("exit\n");
-      await done;
+      await Promise.race([done, until(() => false, "the shell to exit after `exit`", out, 5000)]);
       expect(out()).toContain("bye");
       expect(out()).not.toContain("███"); // no ASCII banner per command inside the session
     } finally {

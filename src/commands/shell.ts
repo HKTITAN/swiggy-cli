@@ -155,11 +155,15 @@ export async function runShell(buildProgram: () => Command, io: ShellIO = { stdi
   const keepAlive = setInterval(() => undefined, 1 << 30);
 
   const lines: string[] = [];
+  const queued: string[] = []; // lines typed while a command was running; run in order, never dropped
   let running = false;
   rl.prompt();
-  rl.on("line", async (raw) => {
+  const handle = async (raw: string): Promise<void> => {
     const line = raw.trim();
-    if (running) return;
+    if (running) {
+      queued.push(line);
+      return;
+    }
     if (!line) return rl.prompt();
     if (line === "exit" || line === "quit" || line === ".exit") return rl.close();
     if (line === "clear") {
@@ -176,7 +180,10 @@ export async function runShell(buildProgram: () => Command, io: ShellIO = { stdi
       rl.resume();
       rl.prompt();
     }
-  });
+    const next = queued.shift();
+    if (next !== undefined) await handle(next);
+  };
+  rl.on("line", (raw) => void handle(raw));
   await new Promise<void>((resolve) => rl.on("close", () => resolve()));
   clearInterval(keepAlive);
   setPrompter(undefined);

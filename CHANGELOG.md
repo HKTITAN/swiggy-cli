@@ -2,6 +2,11 @@
 
 All notable changes to `swiggy-cli` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- Shell: a line entered while a command was still running was dropped (the same bug the app had in 0.2.2); it is now queued and runs next. This was the cause of the intermittent Node 20 CI failures in `test/shell.test.ts` (`exit` sent before the previous command finished, so the session never ended).
+
 ## [0.2.3] - 2026-09-05
 
 ### Changed
