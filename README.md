@@ -55,7 +55,7 @@ swiggy            # full-screen app: search, arrow keys, Enter, cart, checkout �
 `swiggy` with no arguments opens a full-screen session (also `swiggy app`). It owns the terminal the way an editor does: your scrollback survives, frames never tear, and one process keeps one warm MCP session for every command you run.
 
 ```text
- swiggy v0.2.3  ● signed in  · address addr_2…                        Powered by Swiggy  ? help  q quit
+ swiggy v0.2.4  ● signed in  · address addr_2…                        Powered by Swiggy  ? help  q quit
  swiggy › food search biryani
  Restaurants 2 of 2 for "biryani"
  ┌───┬──────────────────┬─────────────────────┬─────────────┬──────────────┬─────────────────────┬────────┐

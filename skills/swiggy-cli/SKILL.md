@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires the swiggy-cli binary (npm i -g swiggy-cli), Node 20+, and a signed-in Swiggy account (swiggy auth init, browser + OTP).
 metadata:
   author: HKTITAN
-  version: "0.2.3"
+  version: "0.2.4"
   source: https://github.com/HKTITAN/swiggy-cli
 ---
 
