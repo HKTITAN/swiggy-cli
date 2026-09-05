@@ -32,8 +32,8 @@
     "model-context-protocol"
   ],
   "bin": {
-    "swiggy": "./dist/cli.js",
-    "smn": "./dist/cli.js"
+    "swiggy": "dist/cli.js",
+    "smn": "dist/cli.js"
   },
   "files": [
     "dist",

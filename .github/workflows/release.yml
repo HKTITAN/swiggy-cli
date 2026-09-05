@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ["v*.*.*"]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re)publish, e.g. v0.2.0"
+        required: true
+        type: string
 
 jobs:
   publish:
@@ -10,24 +16,39 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      id-token: write
+      id-token: write # npm provenance + trusted publishing (OIDC)
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
+      # npm >= 11.5 publishes via OIDC "trusted publishing" when no token is present.
+      - run: npm install -g npm@latest && npm --version
       - run: npm ci
       - run: npm run lint
       - run: npm test
-      - run: npm run build
-      - name: Publish to npm
-        run: npm publish --provenance --access public
+      - run: npm run validate:skills
+      - name: Verify the tag matches package.json
+        run: |
+          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
+          PKG="v$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then echo "tag $TAG != package.json $PKG" && exit 1; fi
+      - name: Publish to npm (token if NPM_TOKEN is set, otherwise OIDC trusted publishing)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo "NPM_TOKEN not set — using OIDC trusted publishing (configure the trusted publisher on npmjs.com)."
+            unset NODE_AUTH_TOKEN
+          fi
+          npm publish --provenance --access public
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
           generate_release_notes: true
           fail_on_unmatched_files: false
