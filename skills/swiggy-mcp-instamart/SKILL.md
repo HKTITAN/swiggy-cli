@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires the Swiggy Instamart MCP server connected and the user signed in.
 metadata:
   author: HKTITAN
-  version: "0.2.2"
+  version: "0.2.3"
   reference: https://mcp.swiggy.com/builders/docs/reference/instamart/
 ---
 

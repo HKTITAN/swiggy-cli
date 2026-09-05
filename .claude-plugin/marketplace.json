@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Swiggy MCP skills and CLI for AI agents — Food, Instamart, Dineout, UPI/Swiggy Money payments.",
-    "version": "0.2.2"
+    "version": "0.2.3"
   },
   "plugins": [
     {
       "name": "swiggy",
       "source": "./",
       "description": "Skills for the official Swiggy MCP servers and the swiggy-cli, plus the three MCP server connections.",
-      "version": "0.2.2",
+      "version": "0.2.3",
       "author": { "name": "Harshit Khemani", "email": "harshitkhemani@gmail.com" },
       "homepage": "https://github.com/HKTITAN/swiggy-cli",
       "repository": "https://github.com/HKTITAN/swiggy-cli",

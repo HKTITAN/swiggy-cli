@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires swiggy-cli signed in and the paasId/orderId from the place-order response.
 metadata:
   author: HKTITAN
-  version: "0.2.2"
+  version: "0.2.3"
 ---
 
 # swiggy-pay

@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires swiggy-cli signed in. Places real orders that cost real money.
 metadata:
   author: HKTITAN
-  version: "0.2.2"
+  version: "0.2.3"
 ---
 
 # swiggy-checkout

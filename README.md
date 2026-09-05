@@ -1,7 +1,5 @@
 <div align="center">
 
-<a href="https://github.com/HKTITAN/swiggy-cli"><img src="./assets/banner.png" alt="swiggy-cli — order food, groceries and tables from your terminal, or your agent's tool loop. Powered by Swiggy." width="100%"></a>
-
 <img src="./assets/swiggy-logo.svg" alt="Swiggy" width="64" height="64">
 
 # swiggy-cli
@@ -25,6 +23,8 @@
 npm install -g swiggy-cli
 swiggy            # full-screen app: search, arrow keys, Enter, cart, checkout — one screen
 ```
+
+<a href="https://github.com/HKTITAN/swiggy-cli"><img src="./assets/banner.png" alt="swiggy-cli — order food, groceries and tables from your terminal, or your agent's tool loop. Powered by Swiggy." width="100%"></a>
 
 `swiggy-cli` talks to the three Model Context Protocol servers Swiggy runs at `mcp.swiggy.com` (`/food`, `/im`, `/dineout`). Humans get a full-screen app where every result is a row you can select. Agents get one stable JSON envelope per command, deterministic exit codes, gated destructive tools and a generic `call` that reaches every tool the servers expose (51 today, and whatever ships next).
 
@@ -55,7 +55,7 @@ swiggy            # full-screen app: search, arrow keys, Enter, cart, checkout �
 `swiggy` with no arguments opens a full-screen session (also `swiggy app`). It owns the terminal the way an editor does: your scrollback survives, frames never tear, and one process keeps one warm MCP session for every command you run.
 
 ```text
- swiggy v0.2.2  ● signed in  · address addr_2…                        Powered by Swiggy  ? help  q quit
+ swiggy v0.2.3  ● signed in  · address addr_2…                        Powered by Swiggy  ? help  q quit
  swiggy › food search biryani
  Restaurants 2 of 2 for "biryani"
  ┌───┬──────────────────┬─────────────────────┬─────────────┬──────────────┬─────────────────────┬────────┐

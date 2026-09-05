@@ -39,7 +39,7 @@
   <use href="#swiggy-mark" x="96" y="92" width="100" height="100"/>
   <text x="216" y="146" font-size="64" font-weight="800" fill="#FFFFFF" letter-spacing="-1.5">swiggy<tspan fill="#FF5200">-cli</tspan></text>
   <rect x="216" y="168" width="118" height="34" rx="17" fill="#FF5200" fill-opacity="0.16" stroke="#FF5200" stroke-opacity="0.6"/>
-  <text x="275" y="192" text-anchor="middle" font-size="19" font-weight="700" fill="#FFB187" font-family="Consolas, Menlo, monospace">v0.2.0</text>
+  <text x="275" y="192" text-anchor="middle" font-size="19" font-weight="700" fill="#FFB187" font-family="Consolas, Menlo, monospace">v0.2</text>
   <text x="352" y="192" font-size="19" font-weight="600" fill="#C7CBD2">Powered by Swiggy</text>
 
   <!-- headline -->

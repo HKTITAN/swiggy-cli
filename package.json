@@ -1,6 +1,6 @@
 {
   "name": "swiggy-cli",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Human- and agent-friendly CLI for the official Swiggy MCP servers (Food, Instamart, Dineout): 51 tools, UPI/Swiggy Money payments, stable JSON envelope, bundled agent skills and plugin manifests.",
   "type": "module",
   "license": "MIT",
