@@ -17,7 +17,7 @@ Every caller authenticates with OAuth 2.1 Authorization Code + PKCE (S256) again
 ## Facts
 - Redirect URIs must exact-match an allowlist; loopback `http://localhost`, `http://localhost/callback`, `http://127.0.0.1`, `http://127.0.0.1/callback` are allowlisted (manifest README 2026-04-24; RFC 8252 lets any port match). Custom schemes for Claude/Cursor/VS Code/Windsurf/ChatGPT are allowlisted (docs + README).
 - Lifetimes: access token 5 days; user session 30 days idle sliding; auth code 120 s single-use (docs).
-- **Refresh tokens are not issued in v1.0** despite the metadata advertising the grant; re-run authorization on expiry (docs start/authenticate; roadmap v1.1).
+- Docs say **refresh tokens are not issued in v1.0**; a real sign-in on 2026-09-05 nevertheless returned a refresh token (live capture). The CLI keeps the refresh attempt and falls back to re-authorization if the grant fails; whether `/auth/token` honours `refresh_token` is unverified ([open-questions](../synthesis/open-questions.md)).
 - Errors: 401 → re-auth; 419 → session revoked (full re-auth); 403 → scope; "Cannot resolve session" → missing header; JSON-RPC `-32001` at the transport layer (docs reference/errors).
 - Scopes are server-level; per-domain read/write scopes are roadmap (docs).
 - One token works on Food, Instamart and Dineout; carts/orders remain per server (docs multi-turn-state).

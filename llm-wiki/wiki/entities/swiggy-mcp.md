@@ -15,6 +15,7 @@ Swiggy's commerce platform exposed as Model Context Protocol servers: one Stream
 - Versioning: SemVer at server level; `implementation.version` in `initialize`; 6-month deprecation window; `_meta.swiggy.deprecation` planned; URL pinning `/v1/food`, `/v2/food` planned (operate/versioning, 2026-09-05).
 - Widgets: Food widget registry wired (`hasWidgets: true`), hosted iframe layer "v1.1"; Instamart/Dineout widgets "v1.2" (build/widgets, changelog).
 - Compliance: DPDP 2023 posture, no-PII stance, data residency India (operate/data-and-compliance).
+- Live `tools/list` differs per account (rollout gating) and can include tools the reference does not document (`render_restaurants_dineout`, 2026-09-05); the reference's 51 is the documented surface, not necessarily what one account sees (live capture).
 - Support: builders@swiggy.in; `report_error` tool on every server returns a mailto + summary (reference, 2026-09-05).
 
 ## Relationships

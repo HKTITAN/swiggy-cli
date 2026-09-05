@@ -35,6 +35,9 @@ tags: [instamart, server]
 - Replace semantics drive the CLI's merge-on-add behaviour: [cart-state](../concepts/cart-state.md), [native-cli-feel](../concepts/native-cli-feel.md).
 - Payments: [payment-stage](payment-stage.md); wallet: [swiggy-money](swiggy-money.md) (the `SwiggyPay` group appears in this server's `checkout` docs).
 
+## Rollout gating (observed 2026-09-05)
+`apply_coupon`, `list_coupons` and `get_order_details` were absent from this account's `tools/list` (16 of 19 tools present). Swiggy gates tools per account; agents must use only what `tools/list` returns (live capture).
+
 ## Contradictions & uncertainty
 - Recipe `update_cart { items:[{spinId, quantity}] }` omits `selectedAddressId` that the reference marks required. Reference wins.
 - `your_go_to_items` and `list_coupons` output schemas were truncated in the 2026-09-05 snapshot ([open-questions](../synthesis/open-questions.md)).

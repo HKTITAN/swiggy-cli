@@ -32,3 +32,7 @@ Append-only. `grep "^## \[" log.md | tail -5` shows recent activity.
 
 ## [2026-09-05] lint | initial pass
 - 0 orphans (every page linked from index and ≥1 sibling). Open items moved to synthesis/open-questions: Swiggy Money tool surface, `your_go_to_items`/`list_coupons` output schemas (truncated in snapshot), whether the token endpoint accepts form encoding, widget `_meta` shape.
+
+## [2026-09-05] ingest | signed-in live capture (tools/list, schemas, auth state) + 0.1.4 vs 0.2.0 benchmark
+- raw/2026-09-05-live-tools-and-schemas.md → sources/live-captures-2026-09-05 (new section), concepts/oauth-on-swiggy-mcp (refresh token issued), concepts/rate-limits-and-sessions (no headers), entities/instamart-server (gating), entities/dineout-server (render_restaurants_dineout, tidOverride), entities/swiggy-mcp, entities/swiggy-cli (benchmark, download count).
+- open-questions: 4 resolved, 2 added. CLI: doctor wording changed to "not enabled for this account yet".

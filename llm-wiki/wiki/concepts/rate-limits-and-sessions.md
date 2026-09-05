@@ -23,7 +23,7 @@ Swiggy limits requests per authenticated user per server and — separately — 
 - [oauth-on-swiggy-mcp](oauth-on-swiggy-mcp.md) (auth events), [headless-payments](headless-payments.md) (long-poll cadence), [swiggy-mcp](../entities/swiggy-mcp.md).
 
 ## Contradictions & uncertainty
-- changelog/ship-to-production say MCP-layer limiting was not enforced in v1.0; rate-limits page (newer wording: "you will see 429") says it is. Treated as enforced.
+- changelog/ship-to-production say MCP-layer limiting was not enforced in v1.0; rate-limits page (newer wording: "you will see 429") says it is. **Observed 2026-09-05: no `X-RateLimit-*` headers on any successful response** (live capture), so the headers at least are not shipped yet. The CLI handles 429 either way.
 
 ## Changelog
 - 2026-09-05 — created.

@@ -30,6 +30,11 @@ tags: [dineout, server]
 - [payment-stage](payment-stage.md) for paid deals; [headless-payments](../concepts/headless-payments.md).
 - CLI remembers coordinates from search/details for slots/cart/book: [native-cli-feel](../concepts/native-cli-feel.md).
 
+## Observed 2026-09-05 (live capture)
+- `cancel_booking` absent for this account (matches the docs' "not completely rolled out").
+- **Undocumented tool `render_restaurants_dineout`** present: `{ restaurantIds: string[1..50] (display order ranked by user intent), searches: [{ query, latitude, longitude, entityType? }][1..5] }`; the server re-runs the searches to build rich restaurant cards for widget hosts. Call once after `search_restaurants_dineout` with the final curated order. Not in the 51-tool reference; reachable via `swiggy call dineout render_restaurants_dineout`.
+- `book_table` accepts an undocumented optional `tidOverride` ("override transaction id from auth context").
+
 ## Contradictions & uncertainty
 - The book-a-table recipe uses `lat`/`lng`, `guestCount` on `get_available_slots`, `bookingId` on `get_booking_status`, and says saved locations return coordinates. The reference contradicts all four; reference wins.
 
