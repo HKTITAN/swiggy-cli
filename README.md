@@ -129,6 +129,8 @@ yarn global add swiggy-cli
 npx -p swiggy-cli swiggy <args>  # zero-install
 ```
 
+A mirror is published to GitHub Packages as `@hktitan/swiggy-cli` (`--registry https://npm.pkg.github.com`, needs a GitHub token with `read:packages`); npmjs.com is canonical.
+
 The npm package is `swiggy-cli`; it installs two binaries: `swiggy` (canonical) and `smn` (short alias).
 
 </details>

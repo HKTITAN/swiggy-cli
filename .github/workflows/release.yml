@@ -1,21 +1,50 @@
 name: Release
 
+# Triggered by a version tag (v0.2.1) or by hand for an existing tag.
+# Three jobs: publish to npmjs.com, publish a scoped copy to GitHub Packages (so the package shows on
+# github.com/HKTITAN?tab=packages), then create the GitHub Release. Each publish is skipped when that
+# version already exists on its registry, so re-running after a manual publish is safe.
+
 on:
   push:
     tags: ["v*.*.*"]
   workflow_dispatch:
     inputs:
       tag:
-        description: "Existing tag to (re)publish, e.g. v0.2.0"
+        description: "Existing tag to (re)publish, e.g. v0.2.1"
         required: true
         type: string
 
+env:
+  TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
 jobs:
-  publish:
-    name: publish to npm
+  verify:
+    name: lint · test · tag matches package.json
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run validate:skills
+      - name: Verify the tag matches package.json
+        run: |
+          PKG="v$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then echo "tag $TAG != package.json $PKG" && exit 1; fi
+
+  npm:
+    name: publish to npmjs.com
+    needs: verify
     runs-on: ubuntu-latest
     permissions:
-      contents: write
+      contents: read
       id-token: write # npm provenance + trusted publishing (OIDC)
     steps:
       - uses: actions/checkout@v4
@@ -29,26 +58,65 @@ jobs:
       # npm >= 11.5 publishes via OIDC "trusted publishing" when no token is present.
       - run: npm install -g npm@latest && npm --version
       - run: npm ci
-      - run: npm run lint
-      - run: npm test
-      - run: npm run validate:skills
-      - name: Verify the tag matches package.json
-        run: |
-          TAG="${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}"
-          PKG="v$(node -p "require('./package.json').version")"
-          if [ "$TAG" != "$PKG" ]; then echo "tag $TAG != package.json $PKG" && exit 1; fi
-      - name: Publish to npm (token if NPM_TOKEN is set, otherwise OIDC trusted publishing)
+      - name: Publish (skipped when this version is already on npm, e.g. after a manual publish)
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
+          VER="$(node -p "require('./package.json').version")"
+          if npm view "swiggy-cli@$VER" version >/dev/null 2>&1; then
+            echo "swiggy-cli@$VER is already on npmjs.com — nothing to do."
+            exit 0
+          fi
           if [ -z "$NODE_AUTH_TOKEN" ]; then
             echo "NPM_TOKEN not set — using OIDC trusted publishing (configure the trusted publisher on npmjs.com)."
             unset NODE_AUTH_TOKEN
           fi
           npm publish --provenance --access public
-      - name: Create GitHub Release
+
+  github-packages:
+    name: publish @hktitan/swiggy-cli to GitHub Packages
+    needs: verify
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://npm.pkg.github.com
+          scope: "@hktitan"
+      - run: npm ci
+      - name: Publish the scoped copy (GitHub Packages requires @<owner>/<name>)
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VER="$(node -p "require('./package.json').version")"
+          if npm view "@hktitan/swiggy-cli@$VER" version --registry https://npm.pkg.github.com >/dev/null 2>&1; then
+            echo "@hktitan/swiggy-cli@$VER is already on GitHub Packages — nothing to do."
+            exit 0
+          fi
+          npm pkg set name=@hktitan/swiggy-cli
+          npm pkg delete publishConfig
+          npm publish --registry https://npm.pkg.github.com --access public --provenance=false
+
+  release:
+    name: GitHub Release
+    needs: [npm, github-packages]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+      - name: Create or update the GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+          tag_name: ${{ env.TAG }}
           generate_release_notes: true
           fail_on_unmatched_files: false

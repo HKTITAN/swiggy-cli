@@ -1,6 +1,16 @@
 # Releasing
 
-Releases are tag-driven. Pushing a tag matching `v*.*.*` triggers `.github/workflows/release.yml`, which runs `npm ci`, lint, tests (which build first), publishes to npm with `--provenance --access public`, and creates a GitHub Release with generated notes.
+Releases are tag-driven. Pushing a tag matching `v*.*.*` triggers `.github/workflows/release.yml`, which runs lint, tests (which build first) and the skill validator, then three jobs:
+
+1. **npmjs.com** — `npm publish --provenance --access public` (token or OIDC trusted publishing). Skipped when that version is already on npm, so a locally published version can still be tagged afterwards.
+2. **GitHub Packages** — the same tarball published as **`@hktitan/swiggy-cli`** to `npm.pkg.github.com` with the workflow's `GITHUB_TOKEN`. This is what makes the package appear under <https://github.com/HKTITAN?tab=packages>: that tab lists GitHub's own registry only, never npmjs.com, and GitHub's registry only accepts names scoped to the repository owner. Also skipped when the version already exists there.
+3. **GitHub Release** with generated notes, after both publishes.
+
+Installing from GitHub Packages (mostly useful as a mirror; npmjs.com stays canonical):
+
+```bash
+npm install -g @hktitan/swiggy-cli --registry https://npm.pkg.github.com   # needs a GitHub token with read:packages
+```
 
 ## Prerequisites
 
