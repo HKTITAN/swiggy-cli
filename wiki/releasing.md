@@ -4,8 +4,25 @@ Releases are tag-driven. Pushing a tag matching `v*.*.*` triggers `.github/workf
 
 ## Prerequisites
 
-- `NPM_TOKEN` set as a GitHub Actions secret (granular token scoped to `swiggy-cli`, publish permission, bypass 2FA for automation).
-- Push access to `main`.
+Pick one of two publish paths; the workflow supports both.
+
+1. **Trusted publishing (recommended, no secrets).** On npmjs.com → package `swiggy-cli` → Settings → *Trusted publisher* → GitHub Actions: owner `HKTITAN`, repository `swiggy-cli`, workflow `release.yml`, environment blank. Then **delete** the `NPM_TOKEN` repository secret so the workflow falls back to OIDC (`id-token: write` is already granted; npm ≥ 11.5 is installed in the job).
+2. **Granular access token.** npmjs.com → Access Tokens → Generate → *Granular*, packages: `swiggy-cli` (read + write), *Bypass 2FA* enabled, sensible expiry; store it as the `NPM_TOKEN` repository secret (`gh secret set NPM_TOKEN -R HKTITAN/swiggy-cli`).
+
+> History: the `NPM_TOKEN` set on 2026-04-28 never published — both the v0.1.0 and v0.2.0 release runs failed at `npm publish` with `E404 … PUT https://registry.npmjs.org/swiggy-cli`, which is how the registry reports an unauthorized/expired token. 0.1.0–0.1.4 were published locally.
+
+**Re-running a failed release** (after fixing credentials) without re-tagging:
+
+```bash
+gh workflow run release.yml -R HKTITAN/swiggy-cli -f tag=v0.2.0
+```
+
+**Publishing locally** (no provenance attestation, but immediate):
+
+```bash
+npm login                      # browser login; needs your npm 2FA
+npm ci && npm test && npm publish --access public
+```
 
 ## Cutting a release
 
