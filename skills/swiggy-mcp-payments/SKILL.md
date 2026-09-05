@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires a Swiggy MCP server connected and the user signed in. UPI is India-only.
 metadata:
   author: HKTITAN
-  version: "0.2.1"
+  version: "0.2.2"
   reference: https://mcp.swiggy.com/builders/docs/build/recipes/pay-with-upi/
 ---
 

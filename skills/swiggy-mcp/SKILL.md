@@ -5,7 +5,7 @@ license: MIT
 compatibility: Needs an MCP client that supports Streamable HTTP with OAuth (Claude Desktop/Code, Cursor, VS Code, Windsurf, ChatGPT, or any SDK). India-only user base.
 metadata:
   author: HKTITAN
-  version: "0.2.1"
+  version: "0.2.2"
   docs: https://mcp.swiggy.com/builders/docs/
 ---
 

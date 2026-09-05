@@ -1,6 +1,6 @@
 {
   "name": "swiggy",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Swiggy for Claude Code: skills for the official Swiggy MCP servers (Food, Instamart, Dineout) and the swiggy-cli, with the three MCP servers pre-wired. Order food, groceries and tables, and pay with UPI or Swiggy Money, from an agent.",
   "author": {
     "name": "Harshit Khemani",

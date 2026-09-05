@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires swiggy-cli signed in and a saved address (or defaultAddressId in the profile).
 metadata:
   author: HKTITAN
-  version: "0.2.1"
+  version: "0.2.2"
 ---
 
 # swiggy-cart

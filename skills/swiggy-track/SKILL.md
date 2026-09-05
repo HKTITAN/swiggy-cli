@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires swiggy-cli signed in.
 metadata:
   author: HKTITAN
-  version: "0.2.1"
+  version: "0.2.2"
 ---
 
 # swiggy-track

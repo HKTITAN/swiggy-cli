@@ -55,7 +55,7 @@ swiggy            # full-screen app: search, arrow keys, Enter, cart, checkout �
 `swiggy` with no arguments opens a full-screen session (also `swiggy app`). It owns the terminal the way an editor does: your scrollback survives, frames never tear, and one process keeps one warm MCP session for every command you run.
 
 ```text
- swiggy v0.2.1  ● signed in  · address addr_2…                        Powered by Swiggy  ? help  q quit
+ swiggy v0.2.2  ● signed in  · address addr_2…                        Powered by Swiggy  ? help  q quit
  swiggy › food search biryani
  Restaurants 2 of 2 for "biryani"
  ┌───┬──────────────────┬─────────────────────┬─────────────┬──────────────┬─────────────────────┬────────┐
@@ -319,7 +319,9 @@ More: [`wiki/architecture.md`](./wiki/architecture.md).
 
 ## What's new
 
-### 0.2.1 (September 2026)
+### 0.2.2 / 0.2.1 (September 2026)
+
+- **0.2.2:** a line typed while a command is still running is queued and runs next instead of being dropped.
 
 - **The full-screen app** (`swiggy`, `swiggy app`): arrow keys over results, Enter to drill in, inline confirmations, live output, tab completion, history.
 - **Sessions no longer end after the first command.** The address picker used a library that closed stdin behind the session's back; prompts are now answered by the session itself.
