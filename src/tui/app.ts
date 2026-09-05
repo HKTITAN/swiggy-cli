@@ -64,6 +64,7 @@ interface State {
   status: string;
   statusKind: "info" | "ok" | "fail" | "busy";
   busy: boolean;
+  queued?: string; // a line entered while a command was running; runs next
   spinnerFrame: number;
   pending?: Pending;
   address?: string;
@@ -240,6 +241,7 @@ export async function runApp(buildProgram: () => Command, io: AppIO = { stdin: p
         ? `${paint(PALETTE.warn, st.pending.message, undefined, true)} ${paint(PALETTE.muted, "[y/n]")}`
         : `${paint(PALETTE.warn, st.pending.message, undefined, true)} ${paint(PALETTE.muted, `↑↓ then Enter · Esc cancels · #${st.selected + 1} ${stripAnsi(st.entries[st.selected]?.label ?? "").slice(0, 48)}`)}`
       : `${spin}${paint(stColor, st.status)}`;
+    if (st.queued) statusText += paint(PALETTE.muted, `   next: ${st.queued}`);
     if (!st.pending && st.entries.length && st.kind && !st.busy) statusText += paint(PALETTE.muted, `   ${st.entries.length} rows · ${HINT_FOR[st.kind] ?? ""} · #${st.selected + 1} ${stripAnsi(st.entries[st.selected]?.label ?? "").slice(0, 40)}`);
     frame.push(pad(` ${statusText}`, C));
     // input
@@ -324,7 +326,14 @@ export async function runApp(buildProgram: () => Command, io: AppIO = { stdin: p
 
   // ---- running commands ----------------------------------------------------------------------
   async function run(line: string): Promise<void> {
-    if (st.busy) return;
+    if (st.busy) {
+      // Typed ahead: keep it and run it as soon as the current command finishes (never drop input).
+      st.queued = line;
+      st.input = "";
+      st.caret = 0;
+      render();
+      return;
+    }
     const startedAt = Date.now();
     st.history.push(line);
     st.histIdx = -1;
@@ -369,6 +378,9 @@ export async function runApp(buildProgram: () => Command, io: AppIO = { stdin: p
       const a = await loadAuth();
       st.signedIn = Object.values(a.servers).some((e) => evaluateAuthHealth(e).authenticated);
       render();
+      const next = st.queued;
+      st.queued = undefined;
+      if (next) await run(next);
     }
   }
 

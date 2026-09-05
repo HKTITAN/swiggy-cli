@@ -124,10 +124,10 @@ describe("swiggy app (full-screen session)", () => {
     const done = app.runApp(buildProgram, io);
     await until(() => screen().includes("swiggy"), "startup", screen);
     const idle = () => !screen().includes("running");
-    stdin.write("profile set default bogusKey 1" + KEY.enter);
-    await until(() => /Unknown profile key/.test(screen()) && idle(), "usage error shown", screen);
-    stdin.write("nonsense" + KEY.enter);
-    await until(() => /unknown command "nonsense"/i.test(screen()) && idle(), "unknown command shown", screen);
+    // two lines typed back to back: the second is entered while the first runs and must not be dropped
+    stdin.write("profile set default bogusKey 1" + KEY.enter + "nonsense" + KEY.enter);
+    await until(() => /Unknown profile key/.test(screen()), "usage error shown", screen);
+    await until(() => /unknown command "nonsense"/i.test(screen()) && idle(), "typed-ahead command ran after the first", screen);
     stdin.write("food nonsense" + KEY.enter);
     await until(() => /unknown command 'nonsense'/i.test(screen()) && idle(), "unknown subcommand shown (commander exit intercepted)", screen);
     stdin.write("food menu --help" + KEY.enter);
