@@ -67,7 +67,10 @@ export function buildDoctorCommand(program: Command): void {
                 check: `${s}.catalog-drift`,
                 ok: missing.length === 0 && extra.length === 0,
                 soft: true,
-                detail: missing.length === 0 && extra.length === 0 ? "in sync" : `${missing.length ? `not on server: ${missing.join(", ")}` : ""}${missing.length && extra.length ? "; " : ""}${extra.length ? `new upstream: ${extra.join(", ")}` : ""}`,
+                detail:
+                  missing.length === 0 && extra.length === 0
+                    ? "in sync"
+                    : `${missing.length ? `not enabled for this account yet (Swiggy rolls tools out gradually): ${missing.join(", ")}` : ""}${missing.length && extra.length ? "; " : ""}${extra.length ? `new upstream, usable via swiggy call: ${extra.join(", ")}` : ""}`,
               });
             } catch (e) {
               checks.push({ check: `${s}.tools/list`, ok: false, detail: (e as Error).message });

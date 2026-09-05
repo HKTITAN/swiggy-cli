@@ -55,7 +55,7 @@ swiggy instamart list-coupons --json --no-interactive
 swiggy instamart apply-coupon <CODE> --json --no-interactive
 ```
 
-Some coupons require online payment; on a cash order they will not apply. If the user wants that coupon, route them to `swiggy-pay` (UPI).
+Some coupons require online payment; on a cash order they will not apply. If the user wants that coupon, route them to `swiggy-pay` (UPI). Instamart `list-coupons` / `apply-coupon` (and `order <id>`) are rolled out per account; on `NOT_FOUND` (exit 4) tell the user the feature is not enabled for their account yet and continue without it.
 
 ## Clear (destructive)
 
