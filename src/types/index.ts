@@ -7,12 +7,26 @@ export interface ServerEndpoint {
   url: string;
 }
 
+/** Extra, optional metadata the CLI attaches to a success envelope. */
+export interface EnvelopeMeta {
+  profile?: string;
+  /** Human-readable message the Swiggy tool returned alongside `data`. */
+  message?: string;
+  /** Parsed `X-RateLimit-*` headers from the last MCP response, when present. */
+  rateLimit?: { limit?: number; remaining?: number; reset?: number };
+  /** `_meta.swiggy.deprecation` from the tool result, when emitted upstream. */
+  deprecation?: unknown;
+  /** Payment orchestration summary (only for `--pay` / `--wait` flows). */
+  payment?: unknown;
+  [k: string]: unknown;
+}
+
 export interface JsonEnvelope<T = unknown> {
   ok: true;
   server?: string;
   tool?: string;
   data: T;
-  meta?: Record<string, unknown>;
+  meta?: EnvelopeMeta;
 }
 
 export interface JsonErrorEnvelope {
@@ -21,6 +35,7 @@ export interface JsonErrorEnvelope {
     code: string;
     message: string;
     details?: unknown;
+    hint?: string;
   };
 }
 
@@ -32,6 +47,8 @@ export interface OutputOptions {
   raw?: boolean;
   quiet?: boolean;
   noInteractive?: boolean;
+  /** commander stores `--no-interactive` as `interactive: false`; both are honoured. */
+  interactive?: boolean;
   yes?: boolean;
   profile?: string;
 }
@@ -46,30 +63,37 @@ export interface McpToolResult {
   content?: Array<{ type: string; text?: string; [k: string]: unknown }>;
   structuredContent?: unknown;
   isError?: boolean;
+  _meta?: Record<string, unknown>;
   [k: string]: unknown;
 }
 
+export interface AuthEntry {
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: number;
+  obtainedAt?: number;
+  tokenType?: string;
+  scope?: string;
+  clientId?: string;
+  clientSecret?: string;
+  redirectUri?: string;
+  authorizationEndpoint?: string;
+  tokenEndpoint?: string;
+  issuer?: string;
+}
+
 export interface AuthState {
-  servers: Record<
-    string,
-    {
-      accessToken?: string;
-      refreshToken?: string;
-      expiresAt?: number;
-      tokenType?: string;
-      scope?: string;
-      clientId?: string;
-      clientSecret?: string;
-      redirectUri?: string;
-      authorizationEndpoint?: string;
-      tokenEndpoint?: string;
-    }
-  >;
+  servers: Record<string, AuthEntry>;
 }
 
 export interface ProfileConfig {
   defaultServer?: ServerName;
   defaultCity?: string;
+  /** Saved Swiggy address id used when a command needs `addressId` and none is passed. */
+  defaultAddressId?: string;
+  /** Default coordinates for Dineout commands (`latitude` / `longitude`). */
+  defaultLat?: number;
+  defaultLng?: number;
   output?: "human" | "json" | "plain";
   endpoints?: Partial<Record<ServerName, string>>;
 }

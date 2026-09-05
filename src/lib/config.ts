@@ -21,6 +21,32 @@ export const DEFAULT_ENDPOINTS: Record<ServerName, string> = {
   dineout: "https://mcp.swiggy.com/dineout",
 };
 
+/** Swiggy Builders Club docs — every page is also served as Markdown by appending `.md`. */
+export const DOCS = {
+  base: "https://mcp.swiggy.com/builders",
+  index: "https://mcp.swiggy.com/builders/llms.txt",
+  full: "https://mcp.swiggy.com/builders/llms-full.txt",
+  reference: "https://mcp.swiggy.com/builders/docs/reference/",
+  authenticate: "https://mcp.swiggy.com/builders/docs/start/authenticate/",
+  payments: "https://mcp.swiggy.com/builders/docs/build/recipes/pay-with-upi/",
+  rateLimits: "https://mcp.swiggy.com/builders/docs/operate/rate-limits/",
+  errors: "https://mcp.swiggy.com/builders/docs/reference/errors/",
+};
+
+/** Human-readable labels for servers (Swiggy's own naming). */
+export const SERVER_LABEL: Record<ServerName, string> = {
+  food: "Swiggy Food",
+  instamart: "Swiggy Instamart",
+  dineout: "Swiggy Dineout",
+};
+
+/** The `domain` value Swiggy's `report_error` tool expects for each server. */
+export const SERVER_DOMAIN: Record<ServerName, string> = {
+  food: "food",
+  instamart: "im",
+  dineout: "dineout",
+};
+
 async function ensureDir(file: string): Promise<void> {
   await mkdir(dirname(file), { recursive: true });
 }

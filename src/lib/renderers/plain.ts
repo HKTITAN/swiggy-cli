@@ -1,8 +1,10 @@
 import type { CliEnvelope } from "../../types/index.js";
+import { chooseColumns, pickList } from "./human.js";
 
 /**
- * TSV-friendly plain renderer. Best-effort flatten of common shapes
- * (arrays of objects → header row + value rows). Falls back to JSON.
+ * TSV-friendly plain renderer. Flattens the most useful array-of-objects in the payload to a
+ * header row + value rows (same column selection as the human table). Objects become
+ * `key<TAB>value` lines; scalars print as-is.
  */
 export function renderPlain<T>(envelope: CliEnvelope<T>): void {
   if (!envelope.ok) {
@@ -10,23 +12,15 @@ export function renderPlain<T>(envelope: CliEnvelope<T>): void {
     return;
   }
   const data = envelope.data as unknown;
-  if (Array.isArray(data) && data.length > 0 && typeof data[0] === "object" && data[0] !== null) {
-    const headers = Array.from(
-      data.reduce<Set<string>>((set, row) => {
-        Object.keys(row as object).forEach((k) => set.add(k));
-        return set;
-      }, new Set())
-    );
+  const list = pickList(data);
+  if (list) {
+    const headers = chooseColumns(list.rows);
     process.stdout.write(headers.join("\t") + "\n");
-    for (const row of data as Record<string, unknown>[]) {
-      process.stdout.write(headers.map((h) => stringify(row[h])).join("\t") + "\n");
-    }
+    for (const row of list.rows) process.stdout.write(headers.map((h) => stringify(row[h])).join("\t") + "\n");
     return;
   }
   if (typeof data === "object" && data !== null) {
-    for (const [k, v] of Object.entries(data)) {
-      process.stdout.write(`${k}\t${stringify(v)}\n`);
-    }
+    for (const [k, v] of Object.entries(data)) process.stdout.write(`${k}\t${stringify(v)}\n`);
     return;
   }
   process.stdout.write(stringify(data) + "\n");
@@ -34,7 +28,7 @@ export function renderPlain<T>(envelope: CliEnvelope<T>): void {
 
 function stringify(v: unknown): string {
   if (v === null || v === undefined) return "";
-  if (typeof v === "string") return v.replace(/\t/g, " ").replace(/\n/g, " ");
+  if (typeof v === "string") return v.replace(/\t/g, " ").replace(/\r?\n/g, " ");
   if (typeof v === "number" || typeof v === "boolean") return String(v);
   return JSON.stringify(v);
 }

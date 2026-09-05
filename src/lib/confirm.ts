@@ -1,13 +1,12 @@
-import prompts from "prompts";
 import { ConfirmationRequiredError } from "./errors.js";
 import { isMachineMode } from "./tty.js";
+import { loadPrompts } from "./lazy.js";
 import type { OutputOptions } from "../types/index.js";
 
 export async function confirm(action: string, opts: OutputOptions): Promise<void> {
   if (opts.yes) return;
-  if (isMachineMode(opts) || opts.noInteractive) {
-    throw new ConfirmationRequiredError(action);
-  }
+  if (isMachineMode(opts)) throw new ConfirmationRequiredError(action);
+  const prompts = loadPrompts();
   const { value } = await prompts({
     type: "confirm",
     name: "value",
