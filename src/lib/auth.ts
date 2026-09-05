@@ -505,13 +505,26 @@ async function registerDynamicClient(registrationEndpoint: string, redirectUri: 
   return { client_id: registered.client_id, client_secret: registered.client_secret };
 }
 
+/** Official Swiggy mark, verbatim from https://mcp.swiggy.com/builders/favicon.svg (unmodified per brand guidelines). */
+const SWIGGY_MARK_SVG =
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 60 60" width="44" height="44" fill="none" role="img" aria-label="Swiggy">` +
+  `<path fill="#FF5200" d="M0 30C0 17.034 0 10.554 3.498 6.132a16.086 16.086 0 0 1 2.634-2.634C10.548 0 17.034 0 30 0s19.446 0 23.868 3.498c.978.774 1.86 1.656 2.634 2.634C60 10.548 60 17.034 60 30s0 19.446-3.498 23.868a16.086 16.086 0 0 1-2.634 2.634C49.452 60 42.966 60 30 60s-19.446 0-23.868-3.498a16.086 16.086 0 0 1-2.634-2.634C0 49.452 0 42.966 0 30Z"/>` +
+  `<path fill="#fff" fill-rule="evenodd" clip-rule="evenodd" d="M31.996 23.565v-6.216a.735.735 0 0 0-.731-.732.735.735 0 0 0-.733.732v7.302c0 .414.336.744.744.744h.714c10.374 0 11.454.54 10.806 2.73-.03.108-.066.21-.102.324a.98.98 0 0 1-.018.066c-2.724 8.214-10.092 18.492-12.27 21.432a.764.764 0 0 1-1.23 0c-1.314-1.776-4.53-6.24-7.464-11.304-.198-.462-.294-1.542 2.964-1.542h3.984c.222 0 .402.18.402.402v3.216c0 .384.282.738.666.768a.73.73 0 0 0 .582-.216.701.701 0 0 0 .216-.516v-4.362a.76.76 0 0 0-.756-.756h-8.052c-1.404 0-2.256-1.2-2.814-2.292-1.752-3.672-3.006-7.296-3.006-10.152 0-7.314 5.832-13.896 13.884-13.896 7.17 0 12.6 5.214 13.704 11.52.007.054.048.294.054.342.288 3.096-7.788 2.742-11.184 2.76a.357.357 0 0 1-.36-.36v.006Z"/>` +
+  `</svg>`;
+
+/** The page shown in the browser after the OAuth redirect. Inline only: no external assets, no scripts. */
 function page(title: string, body: string): string {
   return (
-    `<!doctype html><meta charset="utf-8"><title>swiggy-cli</title>` +
-    `<body style="font-family:system-ui,-apple-system,Segoe UI,sans-serif;background:#fff5ed;color:#222;padding:48px;max-width:560px;margin:auto">` +
-    `<div style="display:flex;align-items:center;gap:12px"><span style="display:inline-block;width:36px;height:36px;border-radius:9px;background:#FF5200"></span>` +
-    `<h1 style="margin:0;color:#FF5200;font-size:22px">swiggy-cli</h1></div>` +
-    `<h2 style="margin-top:28px">${title}</h2><p style="line-height:1.5">${body}</p></body>`
+    `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
+    `<title>swiggy-cli · ${title}</title></head>` +
+    `<body style="margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:#fff5ed;color:#1c1c1e">` +
+    `<main style="max-width:560px;margin:0 auto;padding:56px 24px">` +
+    `<div style="display:flex;align-items:center;gap:14px">${SWIGGY_MARK_SVG}` +
+    `<div><div style="font-size:22px;font-weight:800;letter-spacing:-0.3px">swiggy<span style="color:#FF5200">-cli</span></div>` +
+    `<div style="font-size:13px;color:#6b6f76">Powered by Swiggy</div></div></div>` +
+    `<h1 style="margin:32px 0 8px;font-size:26px">${title}</h1><p style="margin:0;font-size:16px;line-height:1.55;color:#3a3d44">${body}</p>` +
+    `<p style="margin-top:40px;font-size:12px;color:#8a8f98">Independent, community-built CLI on the official Swiggy MCP servers · not an official Swiggy product</p>` +
+    `</main></body></html>`
   );
 }
 
