@@ -1,67 +1,54 @@
 import { Command } from "commander";
-import Table from "cli-table3";
-import { attachOutputOptions, type ExecOpts, readGlobalOpts } from "./common.js";
-import { renderError, renderResult, startSpinner } from "../lib/output.js";
-import { interactiveAuthLoginV2, loadAuth, clearAuth, evaluateAuthHealth, extractTokenClaims } from "../lib/auth.js";
+import { attachOutputOptions, type ExecOpts, readGlobalOpts, run } from "./common.js";
+import { dim, note, ok, renderResult } from "../lib/output.js";
+import { interactiveAuthLogin, loadAuth, clearAuth, evaluateAuthHealth, extractTokenClaims } from "../lib/auth.js";
 import { SERVER_NAMES, type ServerName } from "../types/index.js";
 import { getCurrentProfile, endpointFor } from "../lib/config.js";
 import { PATHS } from "../lib/paths.js";
 import { UsageError } from "../lib/errors.js";
+import { loadTable } from "../lib/lazy.js";
+import { normalizeServer } from "./generic.js";
 
 export function buildAuthCommands(program: Command): void {
-  const auth = program.command("auth").description("Manage authentication for Swiggy MCP servers");
+  const auth = program.command("auth").description("Sign in to Swiggy (OAuth 2.1 + PKCE). One login covers all three servers.");
 
   attachOutputOptions(
     auth
       .command("init")
-      .description("Authenticate via OAuth (browser flow). Repeats per server.")
-      .option("--server <name>", `server: ${SERVER_NAMES.join("|")} (default: all)`)
-      .option(
-        "--client-id <id>",
-        "OAuth client_id (overrides SWIGGY_OAUTH_CLIENT_ID). Optional when dynamic registration is available."
-      )
-      .option(
-        "--client-secret <secret>",
-        "OAuth client_secret for confidential clients (overrides SWIGGY_OAUTH_CLIENT_SECRET). Omit for public PKCE clients."
-      )
-      .option(
-        "--redirect-host <host>",
-        "loopback host for redirect URI: 127.0.0.1 (default) or localhost — both are whitelisted by Swiggy",
-        "127.0.0.1"
-      )
+      .alias("login")
+      .description("Sign in via the browser (phone + OTP). Stores one token for food, instamart and dineout.")
+      .option("--server <name>", `store the token for one server only: ${SERVER_NAMES.join("|")}`)
+      .option("--client-id <id>", "OAuth client_id (overrides SWIGGY_OAUTH_CLIENT_ID). Not needed: Swiggy supports dynamic registration.")
+      .option("--client-secret <secret>", "OAuth client_secret for confidential clients (overrides SWIGGY_OAUTH_CLIENT_SECRET)")
+      .option("--redirect-host <host>", "loopback host for the redirect URI: 127.0.0.1 (default) or localhost", "127.0.0.1")
       .option("--port <port>", "fixed port for the redirect listener (default: ephemeral)")
+      .option("--no-browser", "print the sign-in URL instead of opening a browser")
+      .option("--timeout <seconds>", "how long to wait for the browser callback", "300")
       .action(
-        async (o: {
-          server?: string;
-          clientId?: string;
-          clientSecret?: string;
-          redirectHost?: "127.0.0.1" | "localhost";
-          port?: string;
-        }) => {
+        async (o: { server?: string; clientId?: string; clientSecret?: string; redirectHost?: "127.0.0.1" | "localhost"; port?: string; browser?: boolean; timeout?: string }) => {
           const opts = readGlobalOpts(auth);
-          try {
-            const targets = o.server ? [assertServer(o.server)] : SERVER_NAMES;
+          await run(opts, async () => {
+            const targets = o.server ? [assertServer(normalizeServer(o.server))] : SERVER_NAMES;
             const { profile } = await getCurrentProfile(opts.profile);
-            const parsedPort = parsePort(o.port);
-            for (const s of targets) {
-              const sp = startSpinner(`Starting OAuth for ${s}…`, opts);
-              try {
-                await interactiveAuthLoginV2({
-                  server: s,
-                  serverUrl: endpointFor(s, profile),
-                  clientId: o.clientId,
-                  clientSecret: o.clientSecret,
-                  redirectHost: o.redirectHost,
-                  port: parsedPort,
-                });
-              } finally {
-                sp?.stop();
-              }
-            }
-            renderResult({ authenticated: targets }, { ...opts, server: o.server });
-          } catch (err) {
-            process.exitCode = renderError(err, opts);
-          }
+            if (o.redirectHost && o.redirectHost !== "127.0.0.1" && o.redirectHost !== "localhost") throw new UsageError("--redirect-host must be 127.0.0.1 or localhost.");
+            const result = await interactiveAuthLogin({
+              servers: targets,
+              serverUrl: endpointFor(targets[0]!, profile),
+              clientId: o.clientId,
+              clientSecret: o.clientSecret,
+              redirectHost: o.redirectHost,
+              port: parsePort(o.port),
+              openBrowser: o.browser !== false,
+              timeoutMs: Math.max(10, Number(o.timeout) || 300) * 1000,
+              log: (line) => note(line, opts),
+            });
+            note(ok(`✓ signed in — token stored for ${targets.join(", ")} at ${PATHS.authFile}`, opts), opts);
+            renderResult(
+              { authenticated: targets, expiresAt: result.expiresAt ? new Date(result.expiresAt).toISOString() : null, scope: result.scope ?? null, issuer: result.issuer ?? null },
+              { ...opts, tool: "auth.init" },
+              () => undefined
+            );
+          });
         }
       )
   );
@@ -69,10 +56,10 @@ export function buildAuthCommands(program: Command): void {
   attachOutputOptions(
     auth
       .command("status")
-      .description("Show authentication status for all servers and token health")
+      .description("Token presence and expiry per server")
       .action(async () => {
         const opts = readGlobalOpts(auth);
-        try {
+        await run(opts, async () => {
           const state = await loadAuth();
           const data = SERVER_NAMES.map((s) => {
             const e = state.servers[s];
@@ -85,17 +72,15 @@ export function buildAuthCommands(program: Command): void {
               hasRefresh: health.hasRefresh,
             };
           });
-          renderResult({ authFile: PATHS.authFile, servers: data }, opts, renderAuthSummary as never);
-        } catch (err) {
-          process.exitCode = renderError(err, opts);
-        }
+          renderResult({ authFile: PATHS.authFile, servers: data }, { ...opts, tool: "auth.status" }, renderAuthSummary as never);
+        });
       })
   );
 
   attachOutputOptions(
     auth
       .command("whoami")
-      .description("Show signed-in identity details inferred from stored token claims")
+      .description("Identity details inferred from the stored token claims")
       .option("--server <name>", `server: ${SERVER_NAMES.join("|")} (default: all)`)
       .action(async (o: { server?: string }) => {
         await runWhoami(readGlobalOpts(auth), o.server);
@@ -109,13 +94,11 @@ export function buildAuthCommands(program: Command): void {
       .option("--server <name>", "log out of one server only")
       .action(async (o: { server?: string }) => {
         const opts = readGlobalOpts(auth);
-        try {
-          const target = o.server ? assertServer(o.server) : undefined;
+        await run(opts, async () => {
+          const target = o.server ? assertServer(normalizeServer(o.server)) : undefined;
           await clearAuth(target);
-          renderResult({ cleared: target ?? "all" }, opts);
-        } catch (err) {
-          process.exitCode = renderError(err, opts);
-        }
+          renderResult({ cleared: target ?? "all" }, { ...opts, tool: "auth.logout" });
+        });
       })
   );
 }
@@ -137,8 +120,8 @@ function parsePort(port?: string): number | undefined {
 }
 
 export async function runWhoami(opts: ExecOpts, server?: string): Promise<void> {
-  try {
-    const targets = server ? [assertServer(server)] : SERVER_NAMES;
+  await run(opts, async () => {
+    const targets = server ? [assertServer(normalizeServer(server))] : SERVER_NAMES;
     const state = await loadAuth();
     const data = targets.map((s) => {
       const entry = state.servers[s];
@@ -149,51 +132,27 @@ export async function runWhoami(opts: ExecOpts, server?: string): Promise<void> 
         authenticated: health.authenticated,
         reason: health.reason,
         subject: typeof claims?.sub === "string" ? claims.sub : null,
-        issuer: typeof claims?.iss === "string" ? claims.iss : null,
-        issuedAt: typeof claims?.iat === "number" ? new Date(claims.iat * 1000).toISOString() : null,
+        issuer: typeof claims?.iss === "string" ? claims.iss : (entry?.issuer ?? null),
+        issuedAt: typeof claims?.iat === "number" ? new Date(claims.iat * 1000).toISOString() : entry?.obtainedAt ? new Date(entry.obtainedAt).toISOString() : null,
         expiresAt:
-          typeof claims?.exp === "number"
-            ? new Date(claims.exp * 1000).toISOString()
-            : health.expiresAt
-              ? new Date(health.expiresAt).toISOString()
-              : null,
+          typeof claims?.exp === "number" ? new Date(claims.exp * 1000).toISOString() : health.expiresAt ? new Date(health.expiresAt).toISOString() : null,
       };
     });
-    renderResult({ authFile: PATHS.authFile, servers: data }, opts, renderAuthSummary as never);
-  } catch (err) {
-    process.exitCode = renderError(err, opts);
-  }
+    renderResult({ authFile: PATHS.authFile, servers: data }, { ...opts, tool: "auth.whoami" }, renderAuthSummary as never);
+  });
 }
 
 function renderAuthSummary(
   data: {
     authFile: string;
-    servers: Array<{
-      server: string;
-      authenticated: boolean;
-      reason: string;
-      subject?: string | null;
-      issuer?: string | null;
-      expiresAt?: string | null;
-      hasRefresh?: boolean;
-    }>;
-  }
+    servers: Array<{ server: string; authenticated: boolean; reason: string; subject?: string | null; issuer?: string | null; expiresAt?: string | null }>;
+  },
+  ctx: ExecOpts
 ): void {
-  process.stdout.write(`authFile: ${data.authFile}\n`);
-  const table = new Table({
-    head: ["server", "authenticated", "reason", "subject", "issuer", "expiresAt"],
-    style: { head: [], border: [] },
-    wordWrap: true,
-  });
-  for (const row of data.servers) {
-    table.push([
-      row.server,
-      row.authenticated ? "yes" : "no",
-      row.reason ?? "—",
-      row.subject ?? "—",
-      row.issuer ?? "—",
-      row.expiresAt ?? "—",
-    ]);
-  }
+  const Table = loadTable();
+  process.stdout.write(`${dim(`auth store: ${data.authFile}`, ctx)}\n`);
+  const table = new Table({ head: ["server", "signed in", "status", "expires"], style: { head: [], border: [] }, wordWrap: true });
+  for (const row of data.servers) table.push([row.server, row.authenticated ? ok("yes", ctx) : "no", row.reason ?? "—", row.expiresAt ?? "—"]);
   process.stdout.write(`${table.toString()}\n`);
+  if (!data.servers.some((r) => r.authenticated)) process.stdout.write(`${dim("run: swiggy auth init", ctx)}\n`);
 }
