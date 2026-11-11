@@ -37,6 +37,7 @@ swiggy            # full-screen app: search, arrow keys, Enter, cart, checkout �
 ## Contents
 
 - [Is this a wrapper over an MCP?](#is-this-a-wrapper-over-an-mcp)
+- [CLI or direct connection?](#cli-or-direct-connection)
 - [The app](#the-app)
 - [Quick start](#quick-start)
 - [For AI agents](#for-ai-agents)
@@ -61,6 +62,46 @@ What that buys you:
 - **Sanctioned.** It uses the documented OAuth flow and the documented tools, so it keeps working when Swiggy ships changes, and it never touches the private app endpoints Swiggy tells third parties not to call.
 - **Nothing to run.** No server to start, no client to configure. Sign in once and type commands.
 - **Everything Swiggy publishes, on the day it ships.** Named commands cover the catalog; `swiggy call <server> <tool>` reaches any tool, including ones newer than this release.
+
+---
+
+## CLI or direct connection?
+
+Swiggy's servers can be reached two ways: connect them to a chat app (Claude, ChatGPT, Cursor) and let the model call the tools, or use this CLI. They are good at different things.
+
+<img src="./assets/readme/cli-vs-mcp.png" alt="Two ways to reach Swiggy side by side. Left: a chat window where Swiggy's restaurant cards render in the conversation. Right: a terminal running swiggy food search and swiggy food checkout with UPI, ending in paid, order confirmed." width="100%">
+
+### For people
+
+| | `swiggy` CLI | Swiggy connected to a chat app |
+| --- | :---: | :---: |
+| Works without an AI model or a chat subscription | ✅ | ❌ |
+| Order with a few keystrokes; same result every time | ✅ | ❌ depends on what the model decides to do |
+| Scriptable: cron, shell aliases, pipes into `jq` | ✅ | ❌ |
+| Pay by UPI from where you are | ✅ link with QR, then polls and confirms | ✅ payment picker in the chat |
+| Ask in plain language ("something light under ₹300") | ❌ you type commands | ✅ |
+| Pictures and rich cards (menus, carts, slots) | ❌ text tables only | ✅ Swiggy's own widgets |
+| Nothing to install | ❌ needs Node.js 20+ | ✅ paste a URL into the app |
+| Works on a phone | ❌ | ✅ |
+
+### For agents
+
+| | `swiggy` CLI | Swiggy connected directly |
+| --- | :---: | :---: |
+| Usable from a shell, a script, CI or cron | ✅ | ❌ needs a client that speaks the protocol |
+| Cost in the model's context | ✅ nothing until a command runs | ❌ 62 tool descriptions loaded up front |
+| Consent before spending money | ✅ enforced: exit 7 without `--yes` | ❌ a prompt instruction the model may skip |
+| Protection against a double order | ✅ never retries; flags a lost response | ❌ left to the agent (Swiggy does not de-duplicate) |
+| Headless UPI: poll on Swiggy's cadence, confirm correctly per service | ✅ one flag: `--pay upi --wait` | ❌ the agent must run the loop itself |
+| Errors an agent can branch on | ✅ stable codes and exit codes | ❌ a message string only |
+| Ids carried between steps (rows, address, coordinates, cart) | ✅ | ❌ the agent threads them through its context |
+| One sign-in shared by every agent on the machine, renewed automatically | ✅ | ❌ each client signs in separately |
+| Model sees the tool schemas and picks tools itself | ❌ it must know the commands (the bundled skills teach them) | ✅ |
+| Swiggy's widgets render for the user | ❌ | ✅ in chat apps that support them |
+| New Swiggy tools on the day they ship | ❌ named commands wait for a release (`swiggy call` reaches them meanwhile) | ✅ |
+| Works where there is no shell (hosted chat, mobile) | ❌ | ✅ |
+
+Short version: in a chat app, connect Swiggy directly. Anywhere there is a terminal, or whenever money moves without a person watching the screen, use the CLI. The plugin in this repo sets up both.
 
 ---
 

@@ -8,6 +8,7 @@ Source for the four stills in the README (`assets/readme/*.png`). They are illus
 | `src/agent-claude` | `assets/readme/agent-claude.png` (1800 × 1280) | an agent using the CLI: two tool calls, then exit 7 and the person's consent |
 | `src/pay-upi` | `assets/readme/pay-upi.png` (1800 × 960) | `checkout --pay upi --wait` and the pay page |
 | `src/scenes-tickets` | `assets/readme/scenes-tickets.png` (1800 × 940) | `scenes discover` and a booked ticket |
+| `src/cli-vs-mcp` | `assets/readme/cli-vs-mcp.png` (1800 × 1008) | the same request through a chat app and through the CLI, and what each is good at (two stages; the wrapper marked `data-shot` is what gets shot) |
 
 ## Re-render
 

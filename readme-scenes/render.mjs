@@ -16,8 +16,8 @@ import { launch } from './scripts/browser.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const out = resolve(here, '..', 'assets', 'readme')
-const ALL = ['hero', 'agent-claude', 'pay-upi', 'scenes-tickets']
-const WIDE = { hero: 1100 }
+const ALL = ['hero', 'agent-claude', 'pay-upi', 'scenes-tickets', 'cli-vs-mcp']
+const WIDE = { hero: 1100, 'cli-vs-mcp': 964 }
 
 const args = process.argv.slice(2)
 const gate = args.includes('--gate')
@@ -45,8 +45,9 @@ try {
       const width = WIDE[name] ?? 900
       const page = await browser.newPage({ viewport: { width, height: 900 }, deviceScaleFactor: 2, colorScheme: 'light', reducedMotion: 'reduce' })
       await page.goto(`${base}?capture=${name}`)
-      const stage = page.locator('.ss-stage').first()
-      await stage.waitFor()
+      await page.locator('.ss-stage').first().waitFor()
+      // A scene made of several stages marks the wrapper to shoot with data-shot
+      const stage = (await page.locator('[data-shot]').count()) ? page.locator('[data-shot]').first() : page.locator('.ss-stage').first()
       // The faces come from Google Fonts: wait for the network, then for every face in use
       await page.waitForLoadState('networkidle')
       await page.evaluate(() => document.fonts.ready)

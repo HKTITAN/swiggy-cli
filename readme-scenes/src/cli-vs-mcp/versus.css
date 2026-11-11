@@ -1,0 +1,107 @@
+/* Two tiles at one height on the paper ground. Each: a title, a stage that
+   crops its window at the foot, and a row of verdicts. One gutter: 32px.
+   The page wrapper (data-shot) is what render.mjs shoots. */
+.vs-page {
+  --sx-ink: #10100f;
+  --sx-body: #4a4843;
+  --sx-dim: #8c877e;
+  --sx-ok: #1ba672;
+  --sx-line: rgba(16, 16, 15, 0.15);
+  --sx-sans: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  display: grid;
+  grid-template-columns: 406px 406px;
+  gap: 24px;
+  width: 900px;
+  margin-inline: auto;
+  padding: 32px;
+  border-radius: 16px;
+  background: #f7f2ea;
+}
+
+.vs-page .vs-col { display: flex; flex-direction: column; min-width: 0; }
+.vs-page .vs-title { margin-bottom: 12px; color: var(--sx-ink); font: 600 15px/22px var(--sx-sans); }
+
+/* The tile is the stage: the window is pinned inside it and runs off its foot */
+.vs .ss-stage {
+  --gutter: 24px;
+  --vs-chat-ground: #faf9f5;
+  --vs-chat-ink: #1f1e1d;
+  --vs-chat-line: rgba(31, 30, 29, 0.14);
+  background: #ece6dc;
+}
+
+.vs .vs-chat,
+.vs .vs-term {
+  position: absolute;
+  top: 24px;
+  left: 24px;
+  width: 358px;
+  height: 380px;
+  border-radius: 12px;
+}
+
+/* The chat window sits back: the quieter window shadow */
+.vs .vs-chat {
+  background: var(--vs-chat-ground);
+  box-shadow: var(--ss-shadow-window);
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+
+.vs .vs-chat .ss-window__bar { background: var(--vs-chat-ground); }
+/* Centered on the window itself, as the terminal's title is, so the two bars match */
+.vs .vs-chat .ss-window__bar { position: relative; }
+.vs .vs-chat .ss-window__title { position: absolute; left: 50%; flex: none; margin: 0; translate: -50% 0; color: #3d3d3a; font-size: 12px; font-weight: 600; }
+
+.vs .vs-thread { display: flex; flex-direction: column; align-items: flex-start; height: 100%; padding: 16px 20px 0; background: var(--vs-chat-ground); }
+
+.vs .vs-q {
+  align-self: flex-end;
+  padding: 7px 12px;
+  border-radius: 13px;
+  background: #f0eee6;
+  color: var(--vs-chat-ink);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+/* Swiggy's card in the thread: its sans, its hairline, its mark at the foot */
+.vs .vs-card {
+  display: grid;
+  gap: 10px;
+  align-self: stretch;
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--vs-chat-line);
+  font-family: var(--sx-sans);
+}
+
+.vs .vs-name { color: var(--sx-ink); font: 600 13px/16px var(--sx-sans); }
+.vs .vs-meta { color: var(--sx-body); font: 400 12px/16px var(--sx-sans); }
+
+.vs .vs-reply { display: grid; gap: 9px; margin-top: 18px; }
+
+/* The terminal leads: the hero shadow */
+.vs .vs-term .ss-term { padding: 4px 18px 18px; font-size: 11.5px; }
+.vs .vs-term .sx-tr { --sx-row: 28px; }
+.vs .vs-term .sx-table { margin-bottom: 4px; }
+.vs .vs-fill { display: flex; align-items: center; gap: 2ch; min-height: 1.65em; padding-left: 2ch; }
+.vs .vs-done { color: var(--sx-ok); font-weight: 700; }
+
+/* Verdicts: quiet chips, a green tick or a muted cross */
+.vs-page .vs-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+
+.vs-page .vs-chip {
+  height: 26px;
+  padding: 0 11px 0 9px;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: inset 0 0 0 1px var(--sx-line);
+  color: var(--sx-ink);
+  font: 500 12px/16px var(--sx-sans);
+}
+
+.vs-page .vs-chip svg { color: var(--sx-dim); }
+.vs-page .vs-chip[data-ok] svg { color: var(--sx-ok); }
+.vs-page .vs-chip:not([data-ok]) { color: var(--sx-body); }

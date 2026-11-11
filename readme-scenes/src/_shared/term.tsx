@@ -62,14 +62,16 @@ export type Cell = string | number
 
 /** A listing: one grid template for the head and every row, so columns line
  * up. A string cell is words; a number is a placeholder bar of that width. */
-export function Table({ cols, head, rows, selected }: { cols: string; head: string[]; rows: Cell[][]; selected?: number }) {
+export function Table({ cols, head, rows, selected }: { cols: string; head?: string[]; rows: Cell[][]; selected?: number }) {
   return (
     <div className="sx-table" style={{ ['--cols' as string]: cols }}>
-      <div className="sx-tr sx-th">
-        {head.map((h) => (
-          <span key={h}>{h}</span>
-        ))}
-      </div>
+      {head && (
+        <div className="sx-tr sx-th">
+          {head.map((h) => (
+            <span key={h}>{h}</span>
+          ))}
+        </div>
+      )}
       {rows.map((row, i) => (
         <div key={i} className="sx-tr" data-selected={i === selected || undefined}>
           {row.map((cell, j) =>
