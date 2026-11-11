@@ -1,6 +1,6 @@
 {
   "name": "swiggy",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Swiggy for Claude Code: skills for Swiggy's four services (Food, Instamart, Dineout, Scenes) and the swiggy-cli, with the four servers pre-wired. Order food and groceries, book tables and event tickets, and pay with UPI or Swiggy Money, from an agent.",
   "author": {
     "name": "Harshit Khemani",

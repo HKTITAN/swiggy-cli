@@ -131,8 +131,9 @@ export const LEGACY_TOOLS: Record<ServerName, readonly string[]> = {
 };
 
 /**
- * Catalog tools with no named command on purpose: they exist to drive a chat client's widget
- * (Swiggy re-fetches and renders cards), which a terminal has no use for. Reachable via `swiggy call`.
+ * Catalog tools with no named command of their own. `render_restaurants_dineout` exists to drive a
+ * chat client's restaurant cards; `swiggy dineout search` calls it behind the scenes, because it is
+ * the only place Swiggy returns the structured restaurants for a Dineout search.
  */
 export const WIDGET_ONLY_TOOLS: ReadonlySet<string> = new Set(["render_restaurants_dineout"]);
 

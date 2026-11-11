@@ -2,6 +2,24 @@
 
 All notable changes to `swiggy-cli` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-11-11
+
+First run of 0.3.0 against a signed-in Swiggy account. Four listings came back empty because the live responses do not match Swiggy's published schemas. All four are fixed and the mock server in the tests now uses the live shapes.
+
+### Fixed
+- **`dineout search` returned no rows.** Swiggy answers a Dineout search in prose only (`structuredContent` is `{}`); the structured restaurants come from a second tool, `render_restaurants_dineout`. The CLI now reads the ids off the prose in Swiggy's order and fetches their cards, so `--json` and the table both have the restaurants again.
+- **`dineout slots` returned no slots.** The slot and deal arrays are sent in the result's `_meta` (for the chat widget), not in `structuredContent`. They are folded into `data`. The listing now numbers the requested date only (Swiggy sends seven days, several hundred slots) and says how many other days are available. `reservationTime` arrives as a string and is sent to `book_table` as a number.
+- **`food menu` said "No items returned".** Menus are now grouped as `categories[].items[]`; both that and the older flat `items[]` are read.
+- **`scenes shows` said "Nothing left to book".** The live payload uses `id` for shows and tickets, a money object for the price and an array for `venueDetails`. Both the live and the documented field names are read.
+
+### Verified live (read-only)
+Sign-in, token state, `doctor` (catalog in sync on all four services), Food search / menu / cart / orders / coupons, Instamart search / usual items / cart / orders, Dineout search / details / slots, Scenes locations / search / details / shows, and the confirmation gate on `dineout book`. Swiggy's servers issue no `Mcp-Session-Id`, so the remembered handshake added in 0.3.0 is what keeps repeat runs from re-initializing. Nothing that places an order, holds tickets or changes a cart was run.
+
+### Known
+- `scenes discover` returned no events in Delhi, Bengaluru, Mumbai or Hyderabad at the time of testing (an empty list from Swiggy, not an error); `scenes search <name>` finds events.
+- Instamart exposes a tool that is not in Swiggy's reference yet, `add_gift_pack_to_cart`. It has no named command; `swiggy call instamart add_gift_pack_to_cart` reaches it.
+- `instamart list-coupons` and `dineout locations` fail on this account, as their `[legacy]` mark says they may.
+
 ## [0.3.0] - 2026-11-11
 
 Catches up with what Swiggy changed between September and November 2026 (verified against <https://mcp.swiggy.com/builders/docs/> on 2026-11-11) and fixes two bugs in how the CLI talks to Swiggy.

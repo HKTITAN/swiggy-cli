@@ -18,6 +18,41 @@ import {
 import { attachPayFlags, attachPaymentCommands, placeOrderWithPayment, type PayFlags } from "./payments.js";
 import { getContext, resolveRef } from "../lib/recent.js";
 import { note, dim } from "../lib/output.js";
+import { resultText } from "../lib/mcp.js";
+import type { McpToolResult } from "../types/index.js";
+
+type Outcome = Awaited<ReturnType<typeof invokeTool>>;
+
+/**
+ * Dineout search answers in prose only (observed live 2026-11-11: `structuredContent` is `{}` and
+ * `content` is a numbered text list with "(ID: 33615)" per row). The structured restaurants come
+ * from a second tool, `render_restaurants_dineout`, which re-runs the search for the ids it is
+ * given. So: read the ids off the prose in Swiggy's order, ask for their cards, and return those
+ * as the search result. If Swiggy ever sends `restaurants` directly again, this does nothing.
+ */
+async function withRestaurantCards(out: Outcome, args: Record<string, unknown>, opts: ReturnType<typeof readGlobalOpts>): Promise<Outcome> {
+  const d = out.data as { restaurants?: unknown } | undefined;
+  if (d && typeof d === "object" && Array.isArray(d.restaurants)) return out;
+  const text = resultText(out.raw as McpToolResult);
+  const ids = [...new Set([...text.matchAll(/\(ID:\s*([A-Za-z0-9_-]+)\)/g)].map((m) => m[1]!))];
+  const total = Number(/Found (\d+) restaurant/i.exec(text)?.[1]);
+  const nextOffset = Number(/offset\s*=\s*(\d+)/i.exec(text)?.[1]);
+  if (ids.length === 0) {
+    // No rows and nothing to render: an empty result, said in Swiggy's own words.
+    return /no restaurants|found 0/i.test(text) ? { ...out, data: { restaurants: [], total: 0, query: args.query }, message: text.split("\n")[0] } : out;
+  }
+  const { query, latitude, longitude, entityType, filters, sortKey } = args;
+  const search = Object.fromEntries(Object.entries({ query, latitude, longitude, entityType, filters, sortKey }).filter(([, v]) => v !== undefined));
+  const cards = await invokeTool("dineout", "render_restaurants_dineout", { restaurantIds: ids, searches: [search] }, { ...opts, quiet: true });
+  const c = (cards.data ?? {}) as Record<string, unknown>;
+  if (!Array.isArray(c.restaurants)) return out;
+  return {
+    ...out,
+    data: { ...c, query, ...(Number.isFinite(total) ? { total } : {}), ...(Number.isFinite(nextOffset) ? { nextOffset } : {}) },
+    message: typeof c.message === "string" ? undefined : out.message,
+    extra: cards.extra ?? out.extra,
+  };
+}
 
 const ENTITY_TYPES = ["locality", "CUISINE", "RESTAURANT_CATEGORY", "ambience_tags"] as const;
 const CART_TYPES = ["DEAL_TICKET_PURCHASE", "DINEOUT"] as const;
@@ -65,7 +100,8 @@ export function buildDineoutCommands(program: Command): void {
             { query, latitude, longitude, sortKey: o.sort, entityType: oneOf(o.entityType, "--entity-type", ENTITY_TYPES), limit: positiveInt(o.limit, "--limit"), offset: num(o.offset, "--offset") },
             o.input
           );
-          const out = await invokeTool("dineout", "search_restaurants_dineout", args, opts);
+          let out = await invokeTool("dineout", "search_restaurants_dineout", args, opts);
+          out = await withRestaurantCards(out, args, opts);
           await rememberDineoutCoords(out.data, out.extra, "search");
           await renderOutcome("dineout", "search_restaurants_dineout", out, opts);
         });

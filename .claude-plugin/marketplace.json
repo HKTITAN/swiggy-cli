@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Swiggy skills and CLI for AI agents: Food, Instamart, Dineout, Scenes, UPI and Swiggy Money payments.",
-    "version": "0.3.0"
+    "version": "0.3.1"
   },
   "plugins": [
     {
       "name": "swiggy",
       "source": "./",
       "description": "Skills for Swiggy's four services and the swiggy-cli, plus the four server connections.",
-      "version": "0.3.0",
+      "version": "0.3.1",
       "author": {
         "name": "Harshit Khemani",
         "email": "harshitkhemani@gmail.com"

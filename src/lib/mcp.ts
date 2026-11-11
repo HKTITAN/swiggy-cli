@@ -423,6 +423,31 @@ export function extractLocationContext(result: McpToolResult): Record<string, un
   return Object.keys(out).length ? out : undefined;
 }
 
+/**
+ * Data a tool returns only for its chat widget. Observed live on 2026-11-11: Dineout's
+ * `get_available_slots` puts just `{ restaurantId, date, message, latitude, longitude }` in
+ * `structuredContent` and the actual `slots` / `deals` arrays in the result's `_meta`, with a prose
+ * copy in `content`. A terminal has no widget, so the arrays are folded into the payload: any
+ * array-valued `_meta` key the payload does not already have.
+ */
+export function mergeWidgetData(payload: unknown, result: McpToolResult): unknown {
+  const meta = result._meta;
+  if (!meta || typeof meta !== "object" || !payload || typeof payload !== "object" || Array.isArray(payload)) return payload;
+  const data = payload as Record<string, unknown>;
+  let merged: Record<string, unknown> | undefined;
+  for (const [k, v] of Object.entries(meta)) {
+    if (!Array.isArray(v) || data[k] !== undefined || k.includes("/") || k.includes(".")) continue;
+    merged = merged ?? { ...data };
+    merged[k] = v;
+  }
+  return merged ?? payload;
+}
+
+/** Every text block of a result, joined: the prose a model would read. */
+export function resultText(result: McpToolResult): string {
+  return (result.content ?? []).flatMap((b) => (b?.type === "text" && typeof b.text === "string" ? [b.text] : [])).join("\n");
+}
+
 /** The server's own error message for a failed call, wherever this server put it. */
 export function extractToolErrorMessage(result: McpToolResult): string | undefined {
   const pick = (p: unknown): string | undefined => {

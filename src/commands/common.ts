@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import type { EnvelopeMeta, OutputOptions, ProfileConfig, ServerName } from "../types/index.js";
 import { getCurrentProfile } from "../lib/config.js";
-import { McpClient, extractDeprecation, extractLocationContext, extractToolErrorMessage, extractToolPayload, unwrapSwiggyEnvelope } from "../lib/mcp.js";
+import { McpClient, extractDeprecation, extractLocationContext, extractToolErrorMessage, extractToolPayload, mergeWidgetData, unwrapSwiggyEnvelope } from "../lib/mcp.js";
 import { renderError, renderResult, startSpinner, brand, dim, note, type RenderContext } from "../lib/output.js";
 import { CliError, UsageError } from "../lib/errors.js";
 import { confirm } from "../lib/confirm.js";
@@ -115,7 +115,7 @@ export async function invokeTool(server: ServerName, tool: string, args: unknown
   if (unwrapped.message) meta.message = unwrapped.message;
   const location = extractLocationContext(result);
   const extra = location || unwrapped.extra ? { ...location, ...unwrapped.extra } : undefined;
-  return { data: unwrapped.data, message: unwrapped.message, extra, raw: result, meta, profileName, profile };
+  return { data: mergeWidgetData(unwrapped.data, result), message: unwrapped.message, extra, raw: result, meta, profileName, profile };
 }
 
 export async function callTool(

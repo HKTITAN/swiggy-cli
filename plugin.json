@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "swiggy-cli",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Swiggy for AI agents: skills for Swiggy's four services (Food, Instamart, Dineout, Scenes: 62 tools, UPI and Swiggy Money payments) and for the swiggy-cli, plus the four server connections.",
   "author": {
     "name": "Harshit Khemani",

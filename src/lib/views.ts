@@ -2,6 +2,7 @@ import type { OutputOptions, ServerName } from "../types/index.js";
 import { loadTable } from "./lazy.js";
 import { PALETTE, paint, renderMarkdown, link } from "./ui.js";
 import { shouldUseColor } from "./tty.js";
+import { eventShowRows, menuItems, slotsOfRequestedDate } from "./recent.js";
 
 /**
  * Native views: one renderer per Swiggy response shape, built from the output schemas at
@@ -135,7 +136,7 @@ function foodRestaurants(data: Rec, ctx: ViewCtx): string {
 
 function foodMenu(data: Rec, ctx: ViewCtx): string {
   const rest = isRec(data.restaurant) ? data.restaurant : {};
-  const items = arr(data.items);
+  const items = menuItems(data);
   const meta = [Array.isArray(rest.cuisines) ? (rest.cuisines as string[]).join(", ") : "", rest.avgRatingString ? `${s(rest.avgRatingString)}★` : rest.avgRating ? `${s(rest.avgRating)}★` : "", s(rest.costForTwoMessage), s(rest.slaString), rest.isOpen === false ? "closed" : ""].filter(Boolean).join(" · ");
   const out: string[] = [title(s(rest.name) || "Menu", ctx, meta)];
   if (rest.address) out.push(dim(s(rest.address), ctx));
@@ -438,8 +439,9 @@ function dineoutDetails(data: Rec, ctx: ViewCtx): string {
 }
 
 function dineoutSlots(data: Rec, ctx: ViewCtx): string {
-  const slots = arr(data.slots);
-  const out = [title(s(data.restaurantName) || "Available slots", ctx, `from ${s(data.date)}${data.guestCount ? ` · ${s(data.guestCount)} guests` : ""}`)];
+  const slots = slotsOfRequestedDate(data);
+  const otherDays = new Set(arr(data.slots).map((x) => s(x.dateStr))).size - new Set(slots.map((x) => s(x.dateStr))).size;
+  const out = [title(s(data.restaurantName) || "Available slots", ctx, `${otherDays > 0 ? "on" : "from"} ${s(data.date)}${data.guestCount ? ` · ${s(data.guestCount)} guests` : ""}`)];
   if (slots.length === 0) {
     out.push(hint("No slots in this window. Try another date.", ctx));
     return out.join("\n");
@@ -463,6 +465,7 @@ function dineoutSlots(data: Rec, ctx: ViewCtx): string {
     });
   }
   out.push(table(["#", "date", "time", "slot · deal", "price", "left"], rows, ctx));
+  if (otherDays > 0) out.push(dim(`${otherDays} more day(s) available: --date YYYY-MM-DD`, ctx));
   out.push(hint("next: swiggy dineout book <#> --guests 2   (paid deals: the CLI creates the cart and takes UPI with --pay upi --wait)", ctx));
   return out.join("\n");
 }
@@ -507,27 +510,14 @@ function scenesDetails(data: Rec, ctx: ViewCtx): string {
 }
 
 function scenesShows(data: Rec, ctx: ViewCtx): string {
-  const listing = isRec(data.eventShowListing) ? data.eventShowListing : {};
-  const venue = isRec(listing.venueDetails) ? listing.venueDetails : {};
-  const info = isRec(listing.eventInfo) ? listing.eventInfo : {};
-  const bookable = Boolean(venue.venueId);
-  const rows: string[][] = [];
-  let n = 0;
-  for (const day of arr(listing.dateGroupedEventShow)) {
-    for (const show of arr(day.eventShow)) {
-      const when = s(show.show_time_ist) || `${s(day.date)} ${isRec(show.timeRange) ? s(show.timeRange.startTime) : ""}`.trim();
-      for (const t of arr(show.tickets)) {
-        if (show.showId === undefined || !t.ticketId) continue;
-        n += 1;
-        rows.push([bookable ? String(n) : "", when, s(t.ticketTitle), t.price === 0 ? "free" : money(t.price), show.availableSeats !== undefined ? s(show.availableSeats) : ""]);
-      }
-    }
-  }
-  const heading = title(s(info.title) || "Shows", ctx, venue.name ? `at ${s(venue.name)}` : "");
+  const listing = eventShowRows(data);
+  const bookable = Boolean(listing.venueId);
+  const rows = listing.rows.map((r, i) => [bookable ? String(i + 1) : "", r.when, s(r.title), r.price === 0 ? "free" : money(r.price), r.seats !== undefined ? s(r.seats) : ""]);
+  const heading = title(s(listing.eventName) || "Shows", ctx, listing.venueName ? `at ${s(listing.venueName)}` : "");
   if (rows.length === 0) return `${heading}\n${hint("Nothing left to book in this window. Try a later one: --from <iso> --to <iso> (5 days at most)", ctx)}`;
   return [
     heading,
-    table(["#", "show", "ticket", "price", "seats"], rows, ctx),
+    table(["#", "show", "ticket", "price", "left"], rows, ctx),
     hint(bookable ? "next: swiggy scenes cart --show <#> --guests 2" : "browse only: this listing spans venues. Pick one with --venue-id (or run swiggy scenes shows <event>) before booking", ctx),
   ].join("\n");
 }

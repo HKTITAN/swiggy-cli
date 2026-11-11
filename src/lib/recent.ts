@@ -133,6 +133,83 @@ export interface Extracted {
   more?: Array<{ kind: RecentKind; entries: RecentEntry[] }>;
 }
 
+/**
+ * The slots a `get_available_slots` listing numbers: those of the requested date. Swiggy returns
+ * seven days at once (several hundred slots), which is too many rows to pick from; other days are
+ * one `--date` away. Falls back to every slot when none carries the requested date.
+ */
+export function slotsOfRequestedDate(data: Rec): Rec[] {
+  const all = arr(data.slots);
+  const day = str(data.date);
+  const same = day ? all.filter((s) => str(s.dateStr) === day) : [];
+  return same.length ? same : all;
+}
+
+/**
+ * The dishes of a `get_restaurant_menu` payload, in display order. Live responses (2026-11-11)
+ * group them as `categories[].items[]`; the older flat `items[]` is still read. Each dish keeps its
+ * category title so the view can show it.
+ */
+export function menuItems(data: Rec): Rec[] {
+  const flat = arr(data.items);
+  if (flat.length) return flat;
+  return arr(data.categories).flatMap((c) => arr(c.items).map((i) => ({ ...i, categories: [str(c.title) ?? ""] })));
+}
+
+export interface EventShowRow {
+  showId: number | string;
+  ticketId: string;
+  title?: string;
+  price?: number;
+  when: string;
+  showTime?: number;
+  seats?: number;
+}
+
+/**
+ * Flatten a `list_event_shows` payload into one row per (show, ticket type).
+ *
+ * Swiggy passes its event service's payload through as returned, so the field names differ from
+ * the published schema. Observed live on 2026-11-11: shows carry `id` (not `showId`), tickets carry
+ * `id` / `name` / a nested money object (not `ticketId` / `ticketTitle` / a number), `venueDetails`
+ * is an array, and `eventInfo` uses `id` / `name`. Both spellings are read. `show_time_unix` and
+ * `show_time_ist` are the two fields Swiggy adds itself and are used exactly as returned.
+ */
+export function eventShowRows(data: Rec, fallbackVenueId?: string): { rows: EventShowRow[]; venueId?: string; venueName?: string; eventId?: string; eventName?: string } {
+  const listing = isRec(data.eventShowListing) ? data.eventShowListing : {};
+  const venue = Array.isArray(listing.venueDetails) ? arr(listing.venueDetails) : isRec(listing.venueDetails) ? [listing.venueDetails] : [];
+  const info = isRec(listing.eventInfo) ? listing.eventInfo : {};
+  const venueId = venue.length === 1 ? (str(venue[0]!.venueId) ?? str(venue[0]!.id)) : venue.length === 0 ? fallbackVenueId : undefined;
+  const rows: EventShowRow[] = [];
+  for (const day of arr(listing.dateGroupedEventShow)) {
+    const d = day.date;
+    const dayText = isRec(d) ? [d.year, d.month, d.day].map((n) => String(n).padStart(2, "0")).join("-") : (str(d) ?? "");
+    for (const show of arr(day.eventShow)) {
+      const showIdRaw = show.showId ?? show.id;
+      const ticketsOf = arr(show.tickets);
+      if (showIdRaw === undefined || showIdRaw === null) continue;
+      const asNum = Number(showIdRaw);
+      const showId = Number.isFinite(asNum) ? asNum : String(showIdRaw); // create_event_cart takes a number
+      const when = str(show.show_time_ist) ?? [dayText, isRec(show.timeRange) ? str(show.timeRange.startTime) : undefined].filter(Boolean).join(" ");
+      for (const t of ticketsOf) {
+        const ticketId = str(t.ticketId) ?? str(t.id);
+        if (!ticketId) continue;
+        rows.push({ showId, ticketId, title: str(t.ticketTitle) ?? str(t.name), price: ticketPrice(t.price), when, showTime: numOr(show.show_time_unix), seats: numOr(t.availableInventory) ?? numOr(show.availableSeats) ?? numOr(show.maxAvailableInventory) });
+      }
+    }
+  }
+  return { rows, venueId, venueName: venue.length === 1 ? str(venue[0]!.name) : undefined, eventId: str(info.eventId) ?? str(info.id), eventName: str(info.title) ?? str(info.name) };
+}
+
+/** A ticket price as rupees: a plain number, or the service's `{ discountedPrice: { units } }` money object. */
+function ticketPrice(v: unknown): number | undefined {
+  if (typeof v === "number") return v;
+  if (!isRec(v)) return undefined;
+  const money = isRec(v.discountedPrice) ? v.discountedPrice : isRec(v.price) ? v.price : v;
+  const units = Number(money.units);
+  return Number.isFinite(units) ? units + (Number(money.nanos) || 0) / 1e9 : undefined;
+}
+
 /** Derive numbered entries (and follow-up context) from a tool's unwrapped `data`. */
 export function extractRecent(server: ServerName, tool: string, data: unknown, extra?: Rec): Extracted | undefined {
   if (!isRec(data)) return undefined;
@@ -143,7 +220,7 @@ export function extractRecent(server: ServerName, tool: string, data: unknown, e
       const rest = isRec(data.restaurant) ? data.restaurant : {};
       return {
         kind: "menuItems",
-        entries: arr(data.items).flatMap((i) => (str(i.id) ? [{ id: str(i.id)!, label: str(i.name) ?? str(i.id)!, extra: { restaurantId: str(rest.id), restaurantName: str(rest.name), price: i.price } }] : [])),
+        entries: menuItems(data).flatMap((i) => (str(i.id) ? [{ id: str(i.id)!, label: str(i.name) ?? str(i.id)!, extra: { restaurantId: str(rest.id), restaurantName: str(rest.name), price: i.price } }] : [])),
         context: { restaurantId: str(rest.id), restaurantName: str(rest.name) },
       };
     }
@@ -185,15 +262,16 @@ export function extractRecent(server: ServerName, tool: string, data: unknown, e
     case "get_available_slots": {
       const entries: RecentEntry[] = [];
       const restaurantId = str(data.restaurantId);
-      for (const s of arr(data.slots)) {
+      for (const s of slotsOfRequestedDate(data)) {
         const deals = arr(s.deals);
         const when = [str(s.dateStr), str(s.displayTime)].filter(Boolean).join(" ");
-        if (deals.length === 0 && s.slotId !== undefined) entries.push({ id: `${s.slotId}`, label: when, extra: { slotId: s.slotId, reservationTime: s.reservationTime, restaurantId, isFree: s.isFree } });
+        const reservationTime = numOr(s.reservationTime) ?? s.reservationTime; // live responses send it as a string; book_table wants a number
+        if (deals.length === 0 && s.slotId !== undefined) entries.push({ id: `${s.slotId}`, label: when, extra: { slotId: s.slotId, reservationTime, restaurantId, isFree: s.isFree } });
         for (const d of deals) {
           entries.push({
             id: `${d.slotId ?? s.slotId}:${str(d.itemId) ?? ""}`,
             label: `${when}${str(d.title) ? ` · ${str(d.title)}` : ""}${d.isFree === false ? ` · ₹${d.bookingPrice ?? d.coverCharge ?? "?"}` : " · free"}`,
-            extra: { slotId: d.slotId ?? s.slotId, itemId: str(d.itemId), reservationTime: s.reservationTime, restaurantId, isFree: d.isFree ?? s.isFree },
+            extra: { slotId: d.slotId ?? s.slotId, itemId: str(d.itemId), reservationTime, restaurantId, isFree: d.isFree ?? s.isFree },
           });
         }
       }
@@ -211,26 +289,19 @@ export function extractRecent(server: ServerName, tool: string, data: unknown, e
     case "get_event_details":
       return { kind: "events", entries: [], context: { eventId: str(data.eventId), venueId: str(data.venueId) } };
     case "list_event_shows": {
-      const listing = isRec(data.eventShowListing) ? data.eventShowListing : {};
-      const venue = isRec(listing.venueDetails) ? listing.venueDetails : {};
-      const info = isRec(listing.eventInfo) ? listing.eventInfo : {};
-      const venueId = str(venue.venueId) ?? str(extra?.venueId);
-      const entries: RecentEntry[] = [];
-      for (const day of arr(listing.dateGroupedEventShow)) {
-        for (const show of arr(day.eventShow)) {
-          const when = str(show.show_time_ist) ?? [str(day.date), isRec(show.timeRange) ? str(show.timeRange.startTime) : undefined].filter(Boolean).join(" ");
-          for (const t of arr(show.tickets)) {
-            if (show.showId === undefined || !str(t.ticketId)) continue;
-            entries.push({
-              id: `${show.showId}:${str(t.ticketId)}`,
-              label: `${when}${str(t.ticketTitle) ? ` · ${str(t.ticketTitle)}` : ""}${t.price !== undefined ? ` · ₹${t.price}` : ""}`,
-              extra: { venueId, showId: show.showId, ticketId: str(t.ticketId), showTime: show.show_time_unix, price: t.price },
-            });
-          }
-        }
-      }
+      const listing = eventShowRows(data, str(extra?.venueId));
       // Rows from a listing that spans venues are not safe to book from, so they are not numbered.
-      return { kind: "shows", entries: venueId ? entries : [], context: { eventId: str(info.eventId) ?? str(extra?.eventId), venueId } };
+      return {
+        kind: "shows",
+        entries: listing.venueId
+          ? listing.rows.map((r) => ({
+              id: `${r.showId}:${r.ticketId}`,
+              label: `${r.when}${r.title ? ` · ${r.title}` : ""}${r.price !== undefined ? ` · ₹${r.price}` : ""}`,
+              extra: { venueId: listing.venueId, showId: r.showId, ticketId: r.ticketId, showTime: r.showTime, price: r.price },
+            }))
+          : [],
+        context: { eventId: listing.eventId ?? str(extra?.eventId), venueId: listing.venueId },
+      };
     }
     case "get_food_orders":
       return { kind: "orders", entries: arr(data.orders).flatMap((o) => (str(o.orderId) ? [{ id: str(o.orderId)!, label: `${str(o.restaurantName) ?? ""} · ${str(o.orderStatus) ?? ""}`.trim() }] : [])) };

@@ -51,3 +51,9 @@ Append-only. `grep "^## \[" log.md | tail -5` shows recent activity.
 - open-questions: 6 resolved by the new docs (Swiggy Money surface, token endpoint encoding, refresh grant, `render_restaurants_dineout`, deprecation metadata, rate-limit headers), 7 added (no live Scenes capture, legacy tools, plaintext token storage, session id on a stateless transport, real `Retry-After` values, ₹1000 / ₹99 limits, Scenes attribution).
 - 0 orphans: scenes-server, swiggy-builders-docs-2026-11 and what-changed-sep-to-nov-2026 are linked from index and from sibling pages.
 - Not done: `SCHEMA.md` still names three servers in its Domain line (humans own that file); `raw/README.md` has no row for the November fetch (raw/ was out of scope).
+
+## [2026-11-11] live check | first signed-in run of swiggy-cli 0.3.0 (read-only)
+- Live shapes differ from the published schemas in four places: Dineout search is prose-only with `structuredContent: {}` (cards come from `render_restaurants_dineout`); `get_available_slots` carries `slots`/`deals` in `_meta`, with `reservationTime` as a string; `get_restaurant_menu` groups dishes as `categories[].items[]`; `list_event_shows` uses `id`/`name`, a money object for price and an array for `venueDetails`. Fixed in 0.3.1; the test mock now uses these shapes.
+- Confirmed: no `Mcp-Session-Id` is issued on any server (stateless); `tools/list` matches the reference on all four servers except one extra Instamart tool, `add_gift_pack_to_cart`; `get_saved_locations` is gone from Dineout ("Unknown tool"); Instamart coupon tools answer "not enabled for your account yet".
+- `discover_events` returned empty lists in four metros while `search_events` returned 21 matches; cause unknown.
+- Not exercised: anything that mutates (carts, ticket holds, orders, payments).

@@ -204,9 +204,12 @@ export async function startMockMcp(overrides: Partial<MockState> = {}): Promise<
           case "search_restaurants":
             reply(envelope(FIXTURES.restaurants, "Found 2 restaurants for biryani"));
             return;
-          case "get_restaurant_menu":
-            reply(envelope(FIXTURES.menu));
+          case "get_restaurant_menu": {
+            // Live shape (2026-11-11): dishes grouped under categories[].items[], no flat items[].
+            const { items, categoryLabels, ...rest } = FIXTURES.menu;
+            reply(envelope({ ...rest, categories: categoryLabels.map((title) => ({ title, items: items.filter((i) => i.categories.includes(title)).map(({ categories: _c, ...i }) => i), totalItems: items.filter((i) => i.categories.includes(title)).length, hasMoreItems: false })), page: 1, pageSize: 10, hasMore: false }));
             return;
+          }
           case "search_menu":
             reply(envelope(FIXTURES.menuSearch));
             return;
@@ -233,12 +236,30 @@ export async function startMockMcp(overrides: Partial<MockState> = {}): Promise<
           case "get_orders":
             reply(envelope(FIXTURES.imOrders));
             return;
+          // Shapes below are the ones observed against live Swiggy on 2026-11-11.
           case "search_restaurants_dineout":
-            reply(envelope(FIXTURES.dineoutSearch));
+            // Prose only: structuredContent is empty and the ids sit in the text.
+            reply({
+              structuredContent: {},
+              content: [{ type: "text", text: `Found 1 restaurant(s) matching "${String(args.query)}", showing 1.\n1. Toit — Brewery | 4.5★ | ₹1,800 for two | Indiranagar (ID: dr1)\nSearch coordinates: latitude=${String(args.latitude)}, longitude=${String(args.longitude)} (use these for get_restaurant_details and downstream calls).` }],
+            });
             return;
-          case "get_available_slots":
-            reply(envelope(FIXTURES.slots));
+          case "render_restaurants_dineout":
+            reply({
+              structuredContent: { restaurants: FIXTURES.dineoutSearch.restaurants.filter((r) => (args.restaurantIds as string[]).includes(r.id)), message: "Showing 1 restaurants.", latitude: FIXTURES.dineoutSearch.latitude, longitude: FIXTURES.dineoutSearch.longitude },
+              content: [{ type: "text", text: "Showing 1 restaurants.\n1. Toit — Brewery | 4.5★ | ₹1,800 for two | Indiranagar (ID: dr1)" }],
+            });
             return;
+          case "get_available_slots": {
+            // The slot arrays travel in `_meta` (for the chat widget); structuredContent has only the summary.
+            const { slots, ...summary } = FIXTURES.slots;
+            reply({
+              structuredContent: { restaurantId: summary.restaurantId, date: summary.date, message: `Found ${slots.length} available slot(s) for ${summary.date}`, latitude: summary.latitude, longitude: summary.longitude },
+              content: [{ type: "text", text: `Found ${slots.length} slot(s) across 1 day(s).` }],
+              _meta: { slots: slots.map((s) => ({ ...s, reservationTime: String(s.reservationTime) })), deals: slots.flatMap((s) => s.deals), widgetFlags: { chatgptPlatformOverrides: false } },
+            });
+            return;
+          }
           case "create_cart":
             reply(envelope({ cart: { cartKey: "ck_1", cartType: "DEAL_TICKET_PURCHASE", restaurantId: String(args.restaurantId), bill: { billToPay: 500 } }, cartKey: "ck_1", availablePaymentMethods: ["UPI"], paymentOptions: null }));
             return;
@@ -278,11 +299,29 @@ export async function startMockMcp(overrides: Partial<MockState> = {}): Promise<
           case "list_event_shows":
             reply(
               envelope({
+                // The live payload, not the published schema: `id` for shows and tickets, a money
+                // object for the price, `venueDetails` as an array, `id` / `name` on eventInfo.
                 eventShowListing: {
-                  venueDetails: args.venueId ? { venueId: String(args.venueId), name: "The Courtyard" } : undefined,
-                  eventInfo: { eventId: String(args.eventId), title: "Late Night Laughs" },
+                  venueDetails: args.venueId ? [{ id: String(args.venueId), name: "The Courtyard" }] : [{ id: "ven_9", name: "The Courtyard" }, { id: "ven_10", name: "Blue Room" }],
+                  eventInfo: { id: String(args.eventId), name: "Late Night Laughs" },
                   dateGroupedEventShow: [
-                    { date: "2026-11-14", eventShow: [{ showId: 71, show_time_unix: 1794670200, show_time_ist: "Sat 14 Nov, 8:00 PM", availableSeats: 40, tickets: [{ ticketId: "tk_paid", ticketTitle: "General", price: 499 }, { ticketId: "tk_free", ticketTitle: "Standing", price: 0 }] }] },
+                    {
+                      date: { year: 2026, month: 11, day: 14 },
+                      eventShow: [
+                        {
+                          id: "71",
+                          timeRange: { startTime: "2026-11-14T14:30:00Z", endTime: "2026-11-14T16:00:00Z" },
+                          venue: { venueId: String(args.venueId ?? "ven_9") },
+                          maxAvailableInventory: 40,
+                          show_time_unix: 1794670200,
+                          show_time_ist: "Sat 14 Nov, 8:00 PM",
+                          tickets: [
+                            { id: "tk_paid", name: "General", availableInventory: 30, price: { price: { currencyCode: "INR", units: "499", nanos: 0 }, discountedPrice: { currencyCode: "INR", units: "499", nanos: 0 } } },
+                            { id: "tk_free", name: "Standing", availableInventory: 10, price: { price: { currencyCode: "INR", units: "0", nanos: 0 }, discountedPrice: { currencyCode: "INR", units: "0", nanos: 0 } } },
+                          ],
+                        },
+                      ],
+                    },
                   ],
                 },
               })

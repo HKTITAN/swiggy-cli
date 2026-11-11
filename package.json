@@ -1,6 +1,6 @@
 {
   "name": "swiggy-cli",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Swiggy from your terminal, for people and for agents: Food, Instamart, Dineout and Scenes. A direct client for Swiggy's public API with UPI payments, a stable JSON envelope, and bundled agent skills.",
   "type": "module",
   "license": "MIT",

@@ -80,8 +80,19 @@ describe("scenes", () => {
     expect(calls[0]).toMatchObject({ name: "get_event_details", args: { eventId: "ev_a", latitude: 12.9716, longitude: 77.5946 } });
     expect(calls[1]).toMatchObject({ name: "list_event_shows", args: { eventId: "ev_a", venueId: "ven_9", latitude: 12.9716, longitude: 77.5946 } });
     expect(r.out).toContain("Sat 14 Nov, 8:00 PM");
+    expect(r.out).toContain("Late Night Laughs");
+    expect(r.out).toContain("at The Courtyard");
+    expect(r.out).toContain("General");
     expect(r.out).toContain("₹499");
     expect(r.out).toContain("free");
+  });
+
+  it("shows --all-venues lists without row numbers, because a multi-venue listing cannot be booked from", async () => {
+    const r = await cli(["scenes", "shows", "ev_a", "--all-venues"]);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("browse only");
+    const back = await cli(["scenes", "shows", "ev_a"]); // restore the bookable listing for the next tests
+    expect(back.code).toBe(0);
   });
 
   it("cart --show <#> sends the exact show and ticket ids, with show_time_unix untouched", async () => {
@@ -136,6 +147,29 @@ describe("scenes", () => {
   it("payment-options sends the ticket cart's key", async () => {
     await cli(["scenes", "payment-options", "--json"]);
     expect(lastCall()).toMatchObject({ name: "get_payment_options", args: { cartKey: "eck_1" } });
+  });
+});
+
+describe("dineout against the live response shapes", () => {
+  it("search turns Swiggy's prose-only answer into rows by asking for the restaurant cards", async () => {
+    const r = await cli(["dineout", "search", "brewery", "--lat", "12.9784", "--lng", "77.6408", "--json"]);
+    expect(r.code).toBe(0);
+    const calls = mock.state.calls.slice(-2);
+    expect(calls[0]!.name).toBe("search_restaurants_dineout");
+    expect(calls[1]).toMatchObject({ name: "render_restaurants_dineout", args: { restaurantIds: ["dr1"], searches: [{ query: "brewery", latitude: 12.9784, longitude: 77.6408 }] } });
+    const data = r.json?.data as { restaurants: Array<{ id: string; name: string }>; total: number };
+    expect(data.restaurants.map((x) => x.name)).toEqual(["Toit"]);
+    expect(data.total).toBe(1);
+  });
+
+  it("slots come from the widget metadata, and book sends reservationTime as a number", async () => {
+    const sl = await cli(["dineout", "slots", "1", "--date", "2026-09-06"]);
+    expect(sl.code).toBe(0);
+    expect(sl.out).toContain("7:00 PM");
+    expect(sl.out).toContain("Flat 20% off");
+    const b = await cli(["dineout", "book", "1", "--guests", "2", "--yes", "--json"]);
+    expect(b.code).toBe(0);
+    expect(lastCall()).toMatchObject({ name: "book_table", args: { restaurantId: "dr1", slotId: 101, itemId: "dr1-t1", reservationTime: 1757178000, guestCount: 2 } });
   });
 });
 
