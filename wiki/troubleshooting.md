@@ -8,18 +8,21 @@ swiggy doctor --json          # add --offline to skip network checks
 
 Each check is `{ check, ok, detail, soft? }`. Hard failures exit 1; `soft` rows (not signed in, catalog drift, terminal info) are informational. `doctor` also reports whether Swiggy's live `tools/list` matches the bundled catalog — if it says "new upstream: …", the tool is still usable via `swiggy call`; open an issue so an ergonomic verb can be added.
 
-## `AUTH_REQUIRED` / exit 3
+## `AUTH_REQUIRED` / `AUTH_FAILED` / exit 3
 
-- Never signed in, or the 5-day access token expired (Swiggy does not issue refresh tokens yet):
+The CLI refreshes the token on its own: when it has under 24 hours left, and once on an HTTP 401. Exit 3 means that was not enough.
+
+- `AUTH_REQUIRED`: never signed in, the session was revoked (HTTP 419 or JSON-RPC `-32001`), or the stored token expired and `auth.json` holds no refresh token for it (an older or hand-edited file).
+- `AUTH_FAILED` "have expired and could not be refreshed": Swiggy cannot refresh a token that has already expired. This happens when the CLI was not used in the last day before expiry (5 days after login, 30 days after each refresh).
+- `AUTH_FAILED` "rejected by …": the token was refused even after a refresh (logged out of the Swiggy app, security event), or HTTP 403 (scope).
+- Corrupted `auth.json`: delete it.
+
+The fix is the same in every case:
 
 ```bash
 swiggy auth init
-swiggy auth status --json
+swiggy auth status --json     # authenticated, expiresAt, hasRefresh per server
 ```
-
-- `AUTH_FAILED` "rejected by …" with a token → the session was revoked (logging out of the Swiggy app, security event). Re-run `auth init`.
-- HTTP 419 → session revoked; same fix.
-- Corrupted `auth.json` → delete it and re-run `auth init`.
 
 ## "Missing address id" (exit 2) in `--json` mode
 
@@ -29,16 +32,28 @@ Food/Instamart tools need `addressId` and the CLI refuses to guess in machine mo
 swiggy profile set default defaultAddressId <id>
 ```
 
-## Dineout "Missing coordinates"
+## Dineout "needs a location" / "takes coordinates, not a saved address id" (exit 2)
 
-Dineout `details`/`slots`/`cart`/`book` need `latitude`/`longitude`. Saved locations do not carry them; a search does:
+Since November 2026 Swiggy's Dineout search requires `latitude` and `longitude` and no longer accepts a saved `addressId`. `swiggy dineout search --address-id …` exits 2. Give coordinates for the city or area instead:
 
 ```bash
-swiggy dineout search -q italian --address-id <locationId>     # the response's coordinates are remembered
-swiggy dineout slots --restaurant-id <id> --date 2026-09-06     # reuses them
+swiggy dineout search italian --lat 12.9716 --lng 77.5946      # remembered for the following details / slots / book
+swiggy profile set default defaultLat 12.9716                  # or set them once
+swiggy profile set default defaultLng 77.5946
 ```
 
-Or pass `--lat/--lng`, or set `defaultLat`/`defaultLng` on the profile.
+Order of precedence: `--lat/--lng` flags, then profile `defaultLat`/`defaultLng`, then the last coordinates a Dineout response carried (`~/.swiggy/cache/dineout-coords.json`).
+
+## A command is marked `[legacy: …]` or fails with "not in Swiggy's published reference"
+
+`instamart list-coupons`, `instamart apply-coupon`, `instamart order <id>`, `dineout cancel` and `dineout locations` call tools Swiggy removed from its published reference in November 2026. They work only if your account still has the tool. `swiggy doctor` (signed in) lists the ones that are "still enabled for you". For saved locations use `swiggy scenes locations`; to cancel a Dineout booking use the Swiggy app or call 080-67466729.
+
+## Scenes: "needs a location", "No ticket cart", "These tickets are paid"
+
+- `scenes discover` needs `--address-id <id|#>` (from `swiggy scenes locations`) or `--lat/--lng`. After one successful discovery the coordinates Swiggy resolved are reused.
+- `scenes book` uses the cart from the last `scenes cart`, kept for 30 minutes. After that, create it again.
+- A paid cart needs `--pay upi --wait`. `--pay cash` is refused: Scenes has no Cash option. A free cart needs no `--pay` at all.
+- `checkoutMode: UNAVAILABLE` means this show and ticket cannot be booked right now; pick another from `swiggy scenes shows <event>`.
 
 ## Payment stuck on pending
 
@@ -46,9 +61,13 @@ Or pass `--lat/--lng`, or set `defaultLat`/`defaultLng` on the profile.
 - Food `payment-status --wait` needs `--address-id --lat --lng` echoed from the checkout response; without them Swiggy cannot reconcile the order. The pending checkout envelope's `meta.payment.next` has the exact command.
 - `outcome: cart_changed` → the order was not placed; review the cart and place again.
 
+## Network error on `checkout` or `book` (exit 5, `details.mayHavePlacedOrder: true`)
+
+The request may have reached Swiggy before the connection dropped, and Swiggy does not de-duplicate orders. Do not run the command again yet. Check `swiggy food orders` or `swiggy instamart orders` (a multi-store Instamart checkout places one order per store and can partly succeed). For Dineout and Scenes, check your bookings in the Swiggy app: their status commands need the order id from the response that was lost. Place the order again only if it is not there.
+
 ## `RATE_LIMITED` / exit 9
 
-You exceeded 70 req/min (30/min for writes) on one server, or re-initialized too often. Wait `error.details.retryAfterSeconds`. Use `swiggy` (the app) or `swiggy shell` for bursts of commands, and do not run several `swiggy` processes in parallel against one server.
+Swiggy's gateway returned HTTP 429. Swiggy does not publish its limits and sends no quota headers, so the only number available is `error.details.retryAfterSeconds` (from `Retry-After`): wait that long, then retry once. Use `swiggy` (the app) or `swiggy shell` for bursts of commands, and do not run several `swiggy` processes in parallel against one service.
 
 ## The session ended after one command (0.2.0)
 
@@ -67,7 +86,7 @@ swiggy tools food --json | jq -r '.data[].name'
 swiggy call food <name> --input '{…}'
 ```
 
-`cancel_booking` is rolling out gradually and may be absent from your account's `tools/list`.
+Tools Swiggy removed from its reference in November 2026 (`cancel_booking`, Dineout `get_saved_locations`, Instamart `list_coupons` / `apply_coupon` / `get_order_details`) may be absent from your account's `tools/list`.
 
 ## OAuth metadata discovery fails
 
@@ -95,4 +114,4 @@ npx -p swiggy-cli swiggy --help
 
 ## Mobile app conflicts
 
-Using the Swiggy app while the CLI runs can invalidate the session (401/419). Re-run `swiggy auth init`.
+Sessions can be revoked before the token expires (logging out in the Swiggy app, a security event). The CLI then gets a 401 or 419; if its one automatic refresh does not help, re-run `swiggy auth init`.

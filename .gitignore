@@ -5,3 +5,6 @@ dist
 .env
 .env.local
 coverage
+readme-scenes/node_modules
+readme-scenes/dist
+readme-scenes/shots

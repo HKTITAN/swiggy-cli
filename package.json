@@ -1,7 +1,7 @@
 {
   "name": "swiggy-cli",
-  "version": "0.2.4",
-  "description": "Human- and agent-friendly CLI for the official Swiggy MCP servers (Food, Instamart, Dineout): 51 tools, UPI/Swiggy Money payments, stable JSON envelope, bundled agent skills and plugin manifests.",
+  "version": "0.3.0",
+  "description": "Swiggy from your terminal, for people and for agents: Food, Instamart, Dineout and Scenes. A direct client for Swiggy's public API with UPI payments, a stable JSON envelope, and bundled agent skills.",
   "type": "module",
   "license": "MIT",
   "author": "Harshit Khemani <harshitkhemani@gmail.com> (https://github.com/HKTITAN)",
@@ -20,6 +20,9 @@
     "food",
     "instamart",
     "dineout",
+    "tickets",
+    "events",
+    "scenes",
     "upi",
     "payments",
     "agent",
@@ -42,12 +45,13 @@
     "CHANGELOG.md",
     "wiki",
     "skills",
+    "skills.sh.json",
     "plugin.json",
     "mcp.json",
     ".mcp.json",
     ".claude-plugin",
-    "assets",
-    "LICENSE"
+    "LICENSE",
+    "assets/swiggy-logo.svg"
   ],
   "engines": {
     "node": ">=20"
@@ -62,7 +66,9 @@
     "test:watch": "vitest",
     "validate:skills": "node scripts/validate-skills.mjs",
     "prepublishOnly": "npm run lint && npm run build",
-    "pack:check": "npm pack --dry-run"
+    "pack:check": "npm pack --dry-run",
+    "gen:tools": "node scripts/gen-tools-reference.mjs",
+    "check:tools": "node scripts/gen-tools-reference.mjs --check"
   },
   "dependencies": {
     "cli-table3": "^0.6.5",

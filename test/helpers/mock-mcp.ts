@@ -13,8 +13,15 @@ export interface MockState {
   calls: Array<{ name: string; args: unknown; sessionId?: string }>;
   /** Next request with a session id returns 404 once (simulates session expiry). */
   expireSessionOnce: boolean;
-  /** Emit X-RateLimit-* headers on responses. */
+  /** Emit X-RateLimit-* headers on responses (Swiggy does not; the client must ignore them). */
   rateLimitHeaders: boolean;
+  /** Behave like a stateless transport: issue no Mcp-Session-Id and require none. */
+  stateless: boolean;
+  /** Answer the next non-initialize request with HTTP 400 "not initialized" once. */
+  rejectHandshakeOnce: boolean;
+  /** POST /auth/token accepts this refresh token and rotates `token`. */
+  refreshToken?: string;
+  refreshCount: number;
   token: string;
   sessions: Set<string>;
   /** Mutable Instamart cart so `add` merge logic can be tested. */
@@ -50,6 +57,13 @@ export const FIXTURES = {
   imOrders: { orders: [{ orderId: "im_1", status: "Delivered", createdAt: "2026-09-01 19:02", updatedAt: "2026-09-01 19:20", itemCount: 3, totalAmount: 412, orderType: "INSTAMART", isActive: false, currentStatus: "DELIVERED", historyStatus: "Delivered", storeName: "Instamart Koramangala", items: [{ name: "Milk", quantity: 2 }, { name: "Bread", quantity: 1 }] }] },
   foodOrders: { orders: [{ orderId: "fo_1", restaurantId: "r1", restaurantName: "Paradise Biryani", restaurantAreaName: "Koramangala", orderTotal: "750", orderStatus: "Delivered", orderType: "regular", orderedItems: "2 x Chicken Dum Biryani", orderedTime: "2026-09-02 20:15", isActiveOrder: false, actions: [] }] },
   slots: { slots: [{ isFree: true, slotId: 101, displayTime: "7:00 PM", reservationTime: 1757178000, slotGroupName: "Dinner", availableInventory: 4, dateStr: "2026-09-06", deals: [{ itemId: "dr1-t1", ticketId: "t1", slotId: 101, title: "Flat 20% off", isFree: true, availableInventory: 4 }] }, { isFree: false, slotId: 102, displayTime: "8:00 PM", reservationTime: 1757181600, slotGroupName: "Dinner", availableInventory: 2, dateStr: "2026-09-06", price: 500, deals: [{ itemId: "dr1-t2", ticketId: "t2", slotId: 102, title: "Prebook 30% off", isFree: false, bookingPrice: 500, discountPercentage: 30 }] }], restaurantId: "dr1", date: "2026-09-06", restaurantName: "Toit", guestCount: 2, latitude: 12.9784, longitude: 77.6408 },
+  events: {
+    events: [
+      { eventId: "ev_a", eventName: "Late Night Laughs", venueName: "The Courtyard", area: "Indiranagar", date: "Sat 14 Nov", price: "₹499 onwards" },
+      { eventId: "ev_b", eventName: "Strings at Dusk", venueName: "Blue Room", area: "Koramangala", date: "Sun 15 Nov", price: "₹799 onwards" },
+    ],
+    collectionChips: [{ collectionIdentifier: "101", label: "Comedy" }, { collectionIdentifier: "102", label: "Music" }],
+  },
   dineoutSearch: { restaurants: [{ id: "dr1", name: "Toit", cuisine: ["Brewery", "Continental"], locality: "Indiranagar", area: "Indiranagar", rating: { value: "4.5", count: 12000 }, costForTwo: "₹1,800", distance: "2.1 km", availableDeals: [{ dealTitle: "Flat 20% off", ticketId: 1 }] }], latitude: 12.9784, longitude: 77.6408, total: 1, offset: 0 },
 };
 
@@ -67,6 +81,9 @@ export async function startMockMcp(overrides: Partial<MockState> = {}): Promise<
     calls: [],
     expireSessionOnce: false,
     rateLimitHeaders: true,
+    stateless: false,
+    rejectHandshakeOnce: false,
+    refreshCount: 0,
     token: "test-token",
     sessions: new Set(),
     imCart: [],
@@ -89,6 +106,25 @@ export async function startMockMcp(overrides: Partial<MockState> = {}): Promise<
     req.on("data", (c) => (body += c));
     req.on("end", () => {
       const auth = req.headers.authorization;
+      if (req.url && req.url.endsWith("/auth/token")) {
+        let grant: { grant_type?: string; refresh_token?: string } = {};
+        try {
+          grant = JSON.parse(body);
+        } catch {
+          /* not JSON */
+        }
+        res.setHeader("content-type", "application/json");
+        if (!(req.headers["content-type"] ?? "").includes("application/json") || grant.grant_type !== "refresh_token" || !state.refreshToken || grant.refresh_token !== state.refreshToken) {
+          res.statusCode = 400;
+          res.end(JSON.stringify({ error: "invalid_grant", error_description: "bad refresh token" }));
+          return;
+        }
+        state.refreshCount += 1;
+        state.token = `refreshed-${state.refreshCount}`;
+        state.refreshToken = state.token; // Swiggy rotates: the new refresh token equals the new access token
+        res.end(JSON.stringify({ access_token: state.token, refresh_token: state.token, token_type: "Bearer", expires_in: 2_592_000 }));
+        return;
+      }
       if (state.rateLimitHeaders) {
         res.setHeader("x-ratelimit-limit", "70");
         res.setHeader("x-ratelimit-remaining", "69");
@@ -125,7 +161,7 @@ export async function startMockMcp(overrides: Partial<MockState> = {}): Promise<
         state.initializeCount += 1;
         const sid = `sess-${state.initializeCount}`;
         state.sessions.add(sid);
-        res.setHeader("mcp-session-id", sid);
+        if (!state.stateless) res.setHeader("mcp-session-id", sid);
         reply({ protocolVersion: "2025-06-18", capabilities: { tools: {} }, serverInfo: { name: "mock-swiggy", version: "1.0.0" } });
         return;
       }
@@ -134,7 +170,14 @@ export async function startMockMcp(overrides: Partial<MockState> = {}): Promise<
         res.end();
         return;
       }
-      if (!sessionId || !state.sessions.has(sessionId) || state.expireSessionOnce) {
+      if (state.rejectHandshakeOnce) {
+        state.rejectHandshakeOnce = false;
+        res.statusCode = 400;
+        res.setHeader("content-type", "application/json");
+        res.end(JSON.stringify({ error: "Bad Request: server not initialized" }));
+        return;
+      }
+      if (!state.stateless && (!sessionId || !state.sessions.has(sessionId) || state.expireSessionOnce)) {
         state.expireSessionOnce = false;
         if (sessionId) state.sessions.delete(sessionId);
         res.statusCode = 404;
@@ -211,6 +254,49 @@ export async function startMockMcp(overrides: Partial<MockState> = {}): Promise<
             return;
           case "fail":
             reply(text({ success: false, error: { message: "Invalid addressId: required", reportLink: "https://mcp.swiggy.com/report/abc" } }));
+            return;
+          // Food / Instamart shape: data in structuredContent, prose in content.
+          case "structured":
+            reply({ structuredContent: { addresses: [{ id: "addr_1" }] }, content: [{ type: "text", text: "Found 1 saved address (page 1 of 1, showing 1):\n1. [Home] ..." }] });
+            return;
+          // Dineout / Scenes shape: structuredContent empty, JSON envelope in content.
+          case "empty_structured":
+            reply({ structuredContent: {}, content: [{ type: "text", text: JSON.stringify({ success: true, data: { restaurants: [{ id: "dr1" }] }, latitude: 12.9784, longitude: 77.6408 }) }] });
+            return;
+          case "structured_error":
+            reply({ isError: true, structuredContent: { success: false, error: { message: "Cart is empty" } }, content: [{ type: "text", text: "Something went wrong while placing the order." }] });
+            return;
+          case "discover_events":
+            reply({
+              structuredContent: FIXTURES.events,
+              content: [{ type: "text", text: "Found 2 events near you.\nLocation context: latitude=12.9716, longitude=77.5946" }],
+            });
+            return;
+          case "get_event_details":
+            reply(envelope({ eventId: String(args.eventId), eventName: "Late Night Laughs", venueId: "ven_9", venueName: "The Courtyard", area: "Indiranagar", formattedAddress: "12 Main Rd, Indiranagar", venueLat: "12.97", venueLng: "77.64", upcomingDate: "Sat 14 Nov", price: "₹499 onwards" }));
+            return;
+          case "list_event_shows":
+            reply(
+              envelope({
+                eventShowListing: {
+                  venueDetails: args.venueId ? { venueId: String(args.venueId), name: "The Courtyard" } : undefined,
+                  eventInfo: { eventId: String(args.eventId), title: "Late Night Laughs" },
+                  dateGroupedEventShow: [
+                    { date: "2026-11-14", eventShow: [{ showId: 71, show_time_unix: 1794670200, show_time_ist: "Sat 14 Nov, 8:00 PM", availableSeats: 40, tickets: [{ ticketId: "tk_paid", ticketTitle: "General", price: 499 }, { ticketId: "tk_free", ticketTitle: "Standing", price: 0 }] }] },
+                  ],
+                },
+              })
+            );
+            return;
+          case "create_event_cart":
+            reply(envelope({ cart: { cartKey: "eck_1", bill: { billToPay: args.ticketId === "tk_free" ? 0 : 998 } }, cartKey: "eck_1", checkoutMode: args.ticketId === "tk_free" ? "FREE" : "UPI" }));
+            return;
+          case "place_event_order":
+            if (args.paymentMethod === "FREE") reply(envelope({ orderId: "ev_free", cartKey: "eck_2", status: "CONFIRMED", paymentMethod: "FREE", restaurantName: "The Courtyard", reservationDate: "2026-11-14", reservationTime: "8:00 PM", guestCount: args.guestCount }));
+            else reply(envelope({ orderId: "ev_1", cartKey: String(args.cartKey), paasId: "paas_e", transactionId: "txn_e", upiIntentUrl: "upi://e", bridgeUrl: "https://pay.example/bridge/e", isQrFlow: true, pollingIntervalInMs: 10, maxTimeToPollForInMs: 200, status: "PENDING_PAYMENT" }));
+            return;
+          case "get_event_booking_status":
+            reply(text({ success: true, booking: { orderId: String(args.orderId), restaurantId: "ven_9", restaurantName: "The Courtyard", reservationDate: "2026-11-14", reservationTime: "8:00 PM", guestCount: 2, dealTitle: "General", status: "CONFIRMED" } }));
             return;
           case "iserror":
             reply({ isError: true, content: [{ type: "text", text: "boom" }] });

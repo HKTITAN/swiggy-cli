@@ -13,7 +13,7 @@ import { PATHS } from "./paths.js";
  *   6   MCP_ERROR (server returned an error, or the tool returned success:false)
  *   7   CONFIRMATION_REQUIRED (non-interactive without --yes)
  *   8   CONFIG_ERROR
- *   9   RATE_LIMITED (HTTP 429 from Swiggy MCP — honour Retry-After)
+ *   9   RATE_LIMITED (HTTP 429 from Swiggy — honour Retry-After)
  *  10   PAYMENT_FAILED (UPI payment failed / cancelled / timed out during --wait)
  */
 
@@ -61,7 +61,7 @@ export class CliError extends Error {
 export class AuthRequiredError extends CliError {
   constructor(server: string, reason?: string) {
     super("AUTH_REQUIRED", reason ?? `Authentication required for server "${server}".`, {
-      hint: `Run: swiggy auth init (auth store: ${PATHS.authFile}). One Swiggy login covers food, instamart and dineout.`,
+      hint: `Run: swiggy auth init (auth store: ${PATHS.authFile}). One Swiggy login covers food, instamart, dineout and scenes.`,
       details: { server },
     });
   }
@@ -100,11 +100,11 @@ export class RateLimitError extends CliError {
   constructor(server: string, retryAfterSeconds?: number, details?: unknown) {
     super(
       "RATE_LIMITED",
-      `Swiggy MCP rate limit hit on "${server}"${retryAfterSeconds ? ` — retry after ${retryAfterSeconds}s` : ""}.`,
+      `Swiggy rate limit hit on "${server}"${retryAfterSeconds ? ` — retry after ${retryAfterSeconds}s` : ""}.`,
       {
         details: { retryAfterSeconds, ...(typeof details === "object" && details ? details : {}) },
         hint:
-          "Stop retrying immediately and wait for Retry-After. Quotas: 70 req/min per user per server (30/min for write tools). See https://mcp.swiggy.com/builders/docs/operate/rate-limits/",
+          "Stop retrying and wait for Retry-After. Swiggy enforces per-user and aggregate caps at its gateway and does not publish the numbers. See https://mcp.swiggy.com/builders/docs/operate/rate-limits/",
       }
     );
     this.retryAfterSeconds = retryAfterSeconds;

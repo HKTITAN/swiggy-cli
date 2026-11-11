@@ -19,6 +19,7 @@ export const DEFAULT_ENDPOINTS: Record<ServerName, string> = {
   food: "https://mcp.swiggy.com/food",
   instamart: "https://mcp.swiggy.com/im",
   dineout: "https://mcp.swiggy.com/dineout",
+  scenes: "https://mcp.swiggy.com/scenes",
 };
 
 /** Swiggy Builders Club docs — every page is also served as Markdown by appending `.md`. */
@@ -31,6 +32,8 @@ export const DOCS = {
   payments: "https://mcp.swiggy.com/builders/docs/build/recipes/pay-with-upi/",
   rateLimits: "https://mcp.swiggy.com/builders/docs/operate/rate-limits/",
   errors: "https://mcp.swiggy.com/builders/docs/reference/errors/",
+  results: "https://mcp.swiggy.com/builders/docs/build/read-tool-results/",
+  brand: "https://mcp.swiggy.com/builders/docs/operate/brand-guidelines/",
 };
 
 /** Human-readable labels for servers (Swiggy's own naming). */
@@ -38,6 +41,7 @@ export const SERVER_LABEL: Record<ServerName, string> = {
   food: "Swiggy Food",
   instamart: "Swiggy Instamart",
   dineout: "Swiggy Dineout",
+  scenes: "Swiggy Scenes",
 };
 
 /** The `domain` value Swiggy's `report_error` tool expects for each server. */
@@ -45,6 +49,7 @@ export const SERVER_DOMAIN: Record<ServerName, string> = {
   food: "food",
   instamart: "im",
   dineout: "dineout",
+  scenes: "scenes",
 };
 
 async function ensureDir(file: string): Promise<void> {

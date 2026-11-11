@@ -5,7 +5,7 @@ license: MIT
 compatibility: Requires swiggy-cli signed in.
 metadata:
   author: HKTITAN
-  version: "0.2.4"
+  version: "0.3.0"
 ---
 
 # swiggy-address
@@ -21,7 +21,7 @@ swiggy profile set default defaultAddressId <id>     # every later food/instamar
 
 Food and Instamart share the same address book; one lookup serves both. Address ids are stable — cache the id, never the human-readable text.
 
-Match the user's words to `addressTag`/`addressLine` ("home" → HOME). If two addresses could match, show both and ask; never pick silently. Coordinates are not returned here (Swiggy strips them); Dineout has its own `swiggy dineout locations`.
+Match the user's words to `addressTag`/`addressLine` ("home" → HOME). If two addresses could match, show both and ask; never pick silently. Coordinates are not returned here (Swiggy strips them). Dineout does not use saved addresses at all (it takes the coordinates of a city or area), and Scenes has its own `swiggy scenes locations`.
 
 ## Create (GA for every account since Aug 2026)
 

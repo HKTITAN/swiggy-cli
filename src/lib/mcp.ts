@@ -1,24 +1,31 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import { CliError, McpProtocolError, NetworkError, RateLimitError, AuthRequiredError } from "./errors.js";
-import { getAccessToken, getAuthLookupState } from "./auth.js";
+import { forceRefresh, getAccessToken, getAuthLookupState } from "./auth.js";
 import { endpointFor } from "./config.js";
 import { PATHS } from "./paths.js";
 import { USER_AGENT, VERSION } from "./version.js";
 import type { McpTool, McpToolResult, ProfileConfig, ServerName } from "../types/index.js";
 
 /**
- * Minimal Streamable-HTTP MCP client for the Swiggy servers.
+ * The Swiggy API client. Swiggy's public API is JSON-RPC 2.0 over HTTPS (the Model Context Protocol
+ * "Streamable HTTP" transport): one POST per call to mcp.swiggy.com/{food,im,dineout,scenes} with a
+ * Bearer token. This file speaks it directly with fetch; there is no SDK and no child process.
  *
- * - JSON-RPC 2.0 over POST; accepts JSON or SSE responses.
- * - Performs the `initialize` handshake once and persists the `Mcp-Session-Id` per server in
- *   ~/.swiggy/cache/sessions.json so consecutive CLI invocations reuse one session. Swiggy counts
- *   every initialize as an auth event against the rate limit, so this matters for agents that
- *   call the CLI in a loop. An expired session (HTTP 404) is re-initialized once, transparently.
- * - Maps HTTP 401/419 → AUTH_REQUIRED, 429 → RATE_LIMITED (with Retry-After), JSON-RPC -32001 →
- *   AUTH_REQUIRED, and surfaces `X-RateLimit-*` headers on `lastRateLimit`.
+ * - Accepts JSON or SSE responses.
+ * - Handshake once, not per call. Swiggy asks clients never to `initialize` per tool invocation
+ *   (each one is an auth event). A one-shot CLI process cannot hold a connection open, so the
+ *   handshake is recorded per server in ~/.swiggy/cache/sessions.json (with the `Mcp-Session-Id`
+ *   when the server issues one; Swiggy's transport is documented as stateless and may not) and
+ *   later invocations go straight to the call. The record is tied to the token and expires after
+ *   HANDSHAKE_TTL_MS. If the server rejects a call made on a remembered handshake (404, 400, or a
+ *   "not initialized" JSON-RPC error) the CLI handshakes once and retries; such a rejection means
+ *   the call did not run, so the retry is safe even for order placement.
+ * - HTTP 401 with a token → refresh the token once and retry, then AUTH_FAILED. 419 / JSON-RPC
+ *   -32001 → AUTH_REQUIRED. 429 → RATE_LIMITED with Retry-After. Swiggy sends no X-RateLimit-*
+ *   headers, so there is no remaining-quota figure to report.
  */
 
 interface JsonRpcRequest {
@@ -37,17 +44,27 @@ interface JsonRpcResponse<T = unknown> {
 
 export const PROTOCOL_VERSION = "2025-06-18";
 
-export interface RateLimitInfo {
-  limit?: number;
-  remaining?: number;
-  reset?: number;
+/** How long a remembered handshake is trusted before the CLI handshakes again. */
+const HANDSHAKE_TTL_MS = 12 * 60 * 60 * 1000;
+
+interface Handshake {
+  /** Present only when the server issued an `Mcp-Session-Id`. */
+  sessionId?: string;
+  url: string;
+  savedAt: number;
+  /** Fingerprint of the token the handshake was made with (never the token itself). */
+  token?: string;
 }
 
 interface SessionCache {
-  [server: string]: { sessionId: string; url: string; savedAt: number };
+  [server: string]: Handshake;
 }
 
-const memorySessions = new Map<string, string>();
+const memorySessions = new Map<string, Handshake>();
+
+function fingerprint(token: string | undefined): string | undefined {
+  return token ? createHash("sha256").update(token).digest("hex").slice(0, 16) : undefined;
+}
 
 async function loadSessions(): Promise<SessionCache> {
   if (!existsSync(PATHS.sessionFile)) return {};
@@ -58,10 +75,10 @@ async function loadSessions(): Promise<SessionCache> {
   }
 }
 
-async function saveSession(server: string, url: string, sessionId: string | undefined): Promise<void> {
+async function saveSession(server: string, handshake: Handshake | undefined): Promise<void> {
   try {
     const all = await loadSessions();
-    if (sessionId) all[server] = { sessionId, url, savedAt: Date.now() };
+    if (handshake) all[server] = handshake;
     else delete all[server];
     await mkdir(dirname(PATHS.sessionFile), { recursive: true });
     await writeFile(PATHS.sessionFile, JSON.stringify(all, null, 2), { mode: 0o600 });
@@ -80,9 +97,10 @@ interface ClientOpts {
 export class McpClient {
   readonly server: ServerName;
   readonly url: string;
-  lastRateLimit?: RateLimitInfo;
   private sessionId?: string;
   private initialized = false;
+  /** True while running on a handshake this process did not perform itself. */
+  private remembered = false;
   private sessionLoaded = false;
   private readonly noSessionCache: boolean;
 
@@ -90,21 +108,34 @@ export class McpClient {
     this.server = opts.server;
     this.url = endpointFor(opts.server, opts.profile);
     this.noSessionCache = Boolean(opts.noSessionCache);
-    this.sessionId = memorySessions.get(opts.server);
-    // A session id already in memory means this process completed the handshake.
-    if (this.sessionId) this.initialized = true;
+    // A handshake already in memory means this process completed it (the app and the shell).
+    const live = memorySessions.get(opts.server);
+    if (live && live.url === this.url) {
+      this.sessionId = live.sessionId;
+      this.initialized = true;
+      this.remembered = true;
+    }
   }
 
   private async restoreSession(): Promise<void> {
     if (this.sessionLoaded) return;
     this.sessionLoaded = true;
-    if (this.sessionId || this.noSessionCache) return;
+    if (this.initialized || this.noSessionCache) return;
     const cached = (await loadSessions())[this.server];
-    if (cached && cached.url === this.url) {
-      this.sessionId = cached.sessionId;
-      this.initialized = true; // a cached session already completed the handshake
-      memorySessions.set(this.server, cached.sessionId);
-    }
+    if (!cached || cached.url !== this.url) return;
+    if (Date.now() - cached.savedAt > HANDSHAKE_TTL_MS) return;
+    // A handshake made with another token (re-login, another account) is not ours to reuse.
+    if (cached.token && cached.token !== fingerprint(await getAccessToken(this.server))) return;
+    this.sessionId = cached.sessionId;
+    this.initialized = true;
+    this.remembered = true;
+    memorySessions.set(this.server, cached);
+  }
+
+  private async rememberHandshake(token: string | undefined): Promise<void> {
+    const handshake: Handshake = { sessionId: this.sessionId, url: this.url, savedAt: Date.now(), token: fingerprint(token) };
+    memorySessions.set(this.server, handshake);
+    if (!this.noSessionCache) await saveSession(this.server, handshake);
   }
 
   private async headers(): Promise<Record<string, string>> {
@@ -120,20 +151,14 @@ export class McpClient {
     return headers;
   }
 
-  private captureRateLimit(res: Response): void {
-    const limit = res.headers.get("x-ratelimit-limit");
-    const remaining = res.headers.get("x-ratelimit-remaining");
-    const reset = res.headers.get("x-ratelimit-reset");
-    if (limit || remaining || reset) {
-      this.lastRateLimit = {
-        limit: limit ? Number(limit) : undefined,
-        remaining: remaining ? Number(remaining) : undefined,
-        reset: reset ? Number(reset) : undefined,
-      };
-    }
+  /** Handshake again after the server rejected a remembered one, then replay the call once. */
+  private async rehandshake<T>(method: string, params: unknown): Promise<T> {
+    await this.dropSession();
+    await this.initialize();
+    return this.post<T>(method, params, false);
   }
 
-  private async post<T = unknown>(method: string, params: unknown, retryOnSessionLoss = true): Promise<T> {
+  private async post<T = unknown>(method: string, params: unknown, retryOnSessionLoss = true, retryOnAuth = true): Promise<T> {
     const id = randomUUID();
     const body: JsonRpcRequest = { jsonrpc: "2.0", id, method, params };
     const headers = await this.headers();
@@ -144,28 +169,29 @@ export class McpClient {
     } catch (err) {
       throw new NetworkError(`Failed to reach ${this.url}: ${(err as Error).message}`);
     }
-    this.captureRateLimit(res);
-
     const respSession = res.headers.get("mcp-session-id");
-    if (respSession && respSession !== this.sessionId) {
-      this.sessionId = respSession;
-      memorySessions.set(this.server, respSession);
-      if (!this.noSessionCache) await saveSession(this.server, this.url, respSession);
-    }
+    if (respSession && respSession !== this.sessionId) this.sessionId = respSession;
 
     if (res.status === 401 || res.status === 403 || res.status === 419) {
       const hadToken = Boolean(headers.authorization);
+      // A 401 means the call did not run. Swiggy's guidance: refresh first, re-authorize only if that fails.
+      if (res.status === 401 && hadToken && retryOnAuth && (await forceRefresh(this.server))) {
+        await res.body?.cancel().catch(() => undefined);
+        await this.dropSession();
+        if (method !== "initialize") await this.initialize();
+        return this.post<T>(method, params, false, false);
+      }
       await this.dropSession();
       if (res.status === 419) throw new AuthRequiredError(this.server, `Swiggy session was revoked (HTTP 419) for "${this.server}".`);
       if (!hadToken) {
         const authState = await getAuthLookupState(this.server);
         throw new CliError("AUTH_REQUIRED", `Authentication required for server "${this.server}".`, {
           details: authState,
-          hint: `Run: swiggy auth init  (auth store: ${authState.authFile}). One login covers all three servers.`,
+          hint: `Run: swiggy auth init  (auth store: ${authState.authFile}). One login covers all four servers.`,
         });
       }
       throw new CliError("AUTH_FAILED", `Stored credentials were rejected by ${this.server} (HTTP ${res.status}).`, {
-        hint: "Run: swiggy auth init  (tokens last 5 days and may be revoked earlier)",
+        hint: res.status === 403 ? "The token lacks a scope this call needs. Run: swiggy auth init" : "Run: swiggy auth init  (the token could not be refreshed; sessions can be revoked before they expire)",
       });
     }
 
@@ -181,12 +207,13 @@ export class McpClient {
       throw new RateLimitError(this.server, Number.isFinite(seconds) ? seconds : undefined, details);
     }
 
-    // Per MCP Streamable HTTP: 404 with a session id means the session expired → re-initialize once.
-    if (res.status === 404 && headers["mcp-session-id"] && retryOnSessionLoss) {
-      await this.dropSession();
-      this.initialized = false;
-      await this.initialize();
-      return this.post<T>(method, params, false);
+    // 404 with a session id: the session expired. 400/404 on a handshake this process only
+    // remembered: the server wants a fresh one. Either way the call did not run.
+    const sessionGone = res.status === 404 && Boolean(headers["mcp-session-id"]);
+    const handshakeRejected = (res.status === 400 || res.status === 404) && this.remembered;
+    if ((sessionGone || handshakeRejected) && retryOnSessionLoss && method !== "initialize") {
+      await res.body?.cancel().catch(() => undefined);
+      return this.rehandshake<T>(method, params);
     }
 
     const ctype = res.headers.get("content-type") || "";
@@ -217,6 +244,9 @@ export class McpClient {
         await this.dropSession();
         throw new AuthRequiredError(this.server, `Swiggy rejected the session (${payload.error.message}).`);
       }
+      if (this.remembered && retryOnSessionLoss && method !== "initialize" && /not (been )?initiali[sz]ed|initiali[sz]e first|session (not found|expired|invalid)/i.test(payload.error.message ?? "")) {
+        return this.rehandshake<T>(method, params);
+      }
       throw new McpProtocolError(payload.error.message, payload.error);
     }
     return payload.result as T;
@@ -225,8 +255,9 @@ export class McpClient {
   private async dropSession(): Promise<void> {
     this.sessionId = undefined;
     this.initialized = false;
+    this.remembered = false;
     memorySessions.delete(this.server);
-    if (!this.noSessionCache) await saveSession(this.server, this.url, undefined);
+    if (!this.noSessionCache) await saveSession(this.server, undefined);
   }
 
   async initialize(): Promise<void> {
@@ -243,6 +274,8 @@ export class McpClient {
     );
     await this.notify("notifications/initialized", {});
     this.initialized = true;
+    this.remembered = false;
+    await this.rememberHandshake(await getAccessToken(this.server));
   }
 
   private async notify(method: string, params: unknown): Promise<void> {
@@ -315,11 +348,29 @@ export function parseSseEvent<T>(evt: string): JsonRpcResponse<T> | undefined {
 }
 
 /**
- * Extract a useful payload from an MCP tool result.
- * Servers return either `structuredContent` or a content array of text/json blocks.
+ * Extract the machine-readable payload from a tool result, the way Swiggy documents it
+ * (https://mcp.swiggy.com/builders/docs/build/read-tool-results/):
+ *
+ *   1. `structuredContent` when it is present AND non-empty (always on Food and Instamart).
+ *   2. Otherwise the JSON envelope in the `content` text blocks. Dineout and Scenes can omit
+ *      `structuredContent` or send it empty, and their `content` then carries `{ success, data, … }`.
+ *   3. Prose in `content` is a summary for a model to relay; it is returned as-is only when there
+ *      is nothing machine-readable at all.
  */
 export function extractToolPayload(result: McpToolResult): unknown {
-  if (result.structuredContent !== undefined) return result.structuredContent;
+  const structured = result.structuredContent;
+  if (!isEmptyPayload(structured)) return structured;
+  const fromContent = payloadFromContent(result);
+  if (fromContent !== undefined) return fromContent;
+  return structured !== undefined && structured !== null ? structured : result;
+}
+
+function isEmptyPayload(v: unknown): boolean {
+  if (v === undefined || v === null) return true;
+  return typeof v === "object" && !Array.isArray(v) && Object.keys(v as object).length === 0;
+}
+
+function payloadFromContent(result: McpToolResult): unknown {
   if (Array.isArray(result.content)) {
     const texts = result.content.filter((c) => c.type === "text" && typeof c.text === "string").map((c) => c.text as string);
     if (texts.length === 1) {
@@ -343,7 +394,58 @@ export function extractToolPayload(result: McpToolResult): unknown {
       return parsed;
     }
   }
-  return result;
+  return undefined;
+}
+
+/**
+ * Location context a tool echoes NEXT TO `data`. Scenes (and some Dineout) responses carry the
+ * resolved `latitude` / `longitude` only in the `content` blocks: as siblings of `data` in the JSON
+ * envelope, or as a "Location context: latitude=…, longitude=…" line. They are not in
+ * `structuredContent`, and Swiggy asks clients to reuse them for every follow-up call.
+ */
+export function extractLocationContext(result: McpToolResult): Record<string, unknown> | undefined {
+  const out: Record<string, unknown> = {};
+  for (const block of result.content ?? []) {
+    if (block?.type !== "text" || typeof block.text !== "string") continue;
+    try {
+      const env = JSON.parse(block.text) as Record<string, unknown>;
+      if (env && typeof env === "object" && !Array.isArray(env)) {
+        for (const k of ["latitude", "longitude", "eventId", "venueId"]) if (env[k] !== undefined && env[k] !== null && out[k] === undefined) out[k] = env[k];
+      }
+    } catch {
+      const m = /latitude\s*[=:]\s*(-?\d+(?:\.\d+)?)[,\s]+longitude\s*[=:]\s*(-?\d+(?:\.\d+)?)/i.exec(block.text);
+      if (m && out.latitude === undefined) {
+        out.latitude = Number(m[1]);
+        out.longitude = Number(m[2]);
+      }
+    }
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** The server's own error message for a failed call, wherever this server put it. */
+export function extractToolErrorMessage(result: McpToolResult): string | undefined {
+  const pick = (p: unknown): string | undefined => {
+    if (!p || typeof p !== "object") return undefined;
+    const r = p as { error?: unknown; message?: unknown };
+    if (typeof r.error === "string" && r.error.trim()) return r.error;
+    const nested = (r.error as { message?: unknown } | undefined)?.message;
+    if (typeof nested === "string" && nested.trim()) return nested;
+    return typeof r.message === "string" && r.message.trim() ? r.message : undefined;
+  };
+  const fromStructured = pick(result.structuredContent);
+  if (fromStructured) return fromStructured;
+  for (const block of result.content ?? []) {
+    if (block?.type !== "text" || typeof block.text !== "string" || !block.text.trim()) continue;
+    try {
+      const fromJson = pick(JSON.parse(block.text));
+      if (fromJson) return fromJson;
+    } catch {
+      /* a plain message */
+    }
+    return block.text.trim();
+  }
+  return undefined;
 }
 
 export interface SwiggyEnvelope {
@@ -380,7 +482,7 @@ export function unwrapSwiggyEnvelope(payload: unknown): UnwrappedPayload {
   return { data: data !== undefined ? data : rest, message, extra: data !== undefined ? extra : undefined };
 }
 
-/** `_meta.swiggy.deprecation` (planned upstream in v1.1). Returns undefined when absent. */
+/** `_meta.swiggy.deprecation`. Swiggy does not emit this today (deprecations go out by email and changelog); returns undefined when absent. */
 export function extractDeprecation(result: McpToolResult): unknown {
   const meta = result._meta;
   if (!meta || typeof meta !== "object") return undefined;

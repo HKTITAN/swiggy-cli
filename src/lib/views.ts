@@ -68,6 +68,17 @@ export const TOOL_LABELS: Record<string, string> = {
   book_table: "Booking your table",
   get_booking_status: "Loading the booking",
   cancel_booking: "Cancelling the booking",
+  discover_events: "Finding events",
+  search_events: "Looking up the event",
+  get_events_collection: "Loading the genre",
+  get_event_details: "Loading the event",
+  get_event_venue_info: "Loading the venue",
+  list_event_shows: "Loading show times",
+  create_event_cart: "Holding your tickets",
+  get_event_cart: "Loading your tickets",
+  place_event_order: "Booking your tickets",
+  get_event_booking_status: "Loading the booking",
+  render_restaurants_dineout: "Preparing restaurant cards",
 };
 
 export function labelFor(tool: string): string {
@@ -468,6 +479,70 @@ function booking(data: Rec, ctx: ViewCtx): string {
   return [title(data.status === "CANCELLED" ? "Booking cancelled" : "Your booking", ctx), table(["", ""], rows, ctx, [14, 70])].join("\n");
 }
 
+/* ---------------------------------- Scenes --------------------------------- */
+
+function scenesEvents(data: Rec, ctx: ViewCtx, heading: string): string {
+  const rows = arr(data.events);
+  const chips = arr(data.collectionChips);
+  if (rows.length === 0) return `${title("No events found", ctx)}\n${hint("Try another location: swiggy scenes discover --lat <lat> --lng <lng>", ctx)}`;
+  const out = [title(heading, ctx, `${rows.length} near you`)];
+  out.push(table(["#", "event", "venue", "when", "from"], rows.map((e, i) => [String(i + 1), s(e.eventName), `${s(e.venueName)}${e.area ? dim(`\n${s(e.area)}`, ctx) : ""}`, s(e.date), s(e.price)]), ctx));
+  if (chips.length) out.push(`${dim("genres:", ctx)} ${chips.map((c, i) => `${i + 1} ${s(c.label)}`).join(dim("  ·  ", ctx))}   ${dim("→ swiggy scenes collection <#>", ctx)}`);
+  out.push(hint("next: swiggy scenes shows <#>   ·   swiggy scenes details <#>", ctx));
+  return out.join("\n");
+}
+
+function scenesSuggestions(data: Rec, ctx: ViewCtx): string {
+  const rows = arr(data.suggestions);
+  if (rows.length === 0) return `${title("No match for that name", ctx)}\n${hint("search only matches a named artist or show. Browse instead: swiggy scenes discover", ctx)}`;
+  return [title("Matches", ctx, `${rows.length}`), table(["#", "event", "where"], rows.map((e, i) => [String(i + 1), s(e.eventName), s(e.location)]), ctx), hint("next: swiggy scenes shows <#>", ctx)].join("\n");
+}
+
+function scenesDetails(data: Rec, ctx: ViewCtx): string {
+  const rows: string[][] = [["Event", s(data.eventName)], ["Venue", `${s(data.venueName)}${data.area ? dim(` · ${s(data.area)}`, ctx) : ""}`]];
+  if (data.formattedAddress) rows.push(["Address", s(data.formattedAddress)]);
+  if (data.upcomingDate) rows.push(["Next", s(data.upcomingDate)]);
+  if (data.price) rows.push(["From", s(data.price)]);
+  return [title("Event", ctx), table(["", ""], rows, ctx, [10, 80]), hint(`next: swiggy scenes shows ${s(data.eventId)}`, ctx)].join("\n");
+}
+
+function scenesShows(data: Rec, ctx: ViewCtx): string {
+  const listing = isRec(data.eventShowListing) ? data.eventShowListing : {};
+  const venue = isRec(listing.venueDetails) ? listing.venueDetails : {};
+  const info = isRec(listing.eventInfo) ? listing.eventInfo : {};
+  const bookable = Boolean(venue.venueId);
+  const rows: string[][] = [];
+  let n = 0;
+  for (const day of arr(listing.dateGroupedEventShow)) {
+    for (const show of arr(day.eventShow)) {
+      const when = s(show.show_time_ist) || `${s(day.date)} ${isRec(show.timeRange) ? s(show.timeRange.startTime) : ""}`.trim();
+      for (const t of arr(show.tickets)) {
+        if (show.showId === undefined || !t.ticketId) continue;
+        n += 1;
+        rows.push([bookable ? String(n) : "", when, s(t.ticketTitle), t.price === 0 ? "free" : money(t.price), show.availableSeats !== undefined ? s(show.availableSeats) : ""]);
+      }
+    }
+  }
+  const heading = title(s(info.title) || "Shows", ctx, venue.name ? `at ${s(venue.name)}` : "");
+  if (rows.length === 0) return `${heading}\n${hint("Nothing left to book in this window. Try a later one: --from <iso> --to <iso> (5 days at most)", ctx)}`;
+  return [
+    heading,
+    table(["#", "show", "ticket", "price", "seats"], rows, ctx),
+    hint(bookable ? "next: swiggy scenes cart --show <#> --guests 2" : "browse only: this listing spans venues. Pick one with --venue-id (or run swiggy scenes shows <event>) before booking", ctx),
+  ].join("\n");
+}
+
+function eventCart(data: Rec, ctx: ViewCtx): string {
+  const cart = isRec(data.cart) ? data.cart : {};
+  const bill = isRec(cart.bill) ? cart.bill : {};
+  const mode = s(data.checkoutMode);
+  const rows: string[][] = [["Cart key", s(data.cartKey || cart.cartKey)]];
+  if (bill.billToPay !== undefined) rows.push(["To pay", bill.billToPay === 0 ? "free" : money(bill.billToPay)]);
+  if (mode) rows.push(["Checkout", mode === "UNAVAILABLE" ? paint(PALETTE.error, "unavailable", ctx) : mode === "FREE" ? paint(PALETTE.success, "free", ctx) : "UPI"]);
+  const next = mode === "UNAVAILABLE" ? "pick another show: swiggy scenes shows <event>" : mode === "FREE" ? "next: swiggy scenes book" : "next: swiggy scenes book --pay upi --wait";
+  return [title(mode === "UNAVAILABLE" ? "These tickets cannot be booked" : "Tickets held", ctx), table(["", ""], rows, ctx, [12, 80]), hint(next, ctx)].join("\n");
+}
+
 /* --------------------------------- shared ---------------------------------- */
 
 function addresses(data: Rec, ctx: ViewCtx, kind: "addresses" | "locations"): string {
@@ -477,7 +552,7 @@ function addresses(data: Rec, ctx: ViewCtx, kind: "addresses" | "locations"): st
   out.push(table(["#", "label", "address", "phone", "id"], rows.map((a, i) => [String(i + 1), `${s(a.addressTag || a.addressCategory)}`, s(a.addressLine), s(a.phoneNumber), dim(s(a.id), ctx)]), ctx));
   const pg = isRec(data.pagination) ? data.pagination : {};
   if (pg.hasMore) out.push(dim(`more: --page ${Number(pg.page ?? 1) + 1}`, ctx));
-  out.push(hint(kind === "addresses" ? "set a default: swiggy profile set default defaultAddressId <id>" : "search near one: swiggy dineout search -q <term> --address-id <id>", ctx));
+  out.push(hint(kind === "addresses" ? "set a default: swiggy profile set default defaultAddressId <id>" : "events near one: swiggy scenes discover --address-id <#>", ctx));
   return out.join("\n");
 }
 
@@ -500,13 +575,13 @@ function placedOrder(data: Rec, ctx: ViewCtx, server: ServerName): string {
   if (data.deliveryAddress) rows.push(["Deliver to", `${data.deliveryLabel ? `${s(data.deliveryLabel)} · ` : ""}${s(data.deliveryAddress)}`]);
   if (data.estimatedDelivery) rows.push(["ETA", s(data.estimatedDelivery)]);
   const items = arr(data.items);
-  const trackCmd = server === "food" ? `swiggy food track ${s(data.orderId)}` : server === "instamart" ? `swiggy instamart track ${s(data.orderId)} --lat <lat> --lng <lng>` : `swiggy dineout status ${s(data.orderId)}`;
+  const trackCmd = server === "food" ? `swiggy food track ${s(data.orderId)}` : server === "instamart" ? `swiggy instamart track ${s(data.orderId)} --lat <lat> --lng <lng>` : `swiggy ${server} status ${s(data.orderId)}`;
   return [title("Order placed", ctx), table(["", ""], rows, ctx, [12, 90]), items.length ? table(["item", "qty", "total"], items.map((it) => [s(it.name), s(it.quantity), money(it.total ?? it.final_price)]), ctx) : "", hint(`track: ${trackCmd}`, ctx)].filter(Boolean).join("\n");
 }
 
 function paymentOptions(data: Rec, ctx: ViewCtx, server: ServerName): string {
   const all = arr(data.allMethods);
-  const placeCmd = server === "food" ? "food checkout" : server === "instamart" ? "instamart checkout" : "dineout book …";
+  const placeCmd = server === "food" ? "food checkout" : server === "instamart" ? "instamart checkout" : server === "scenes" ? "scenes book" : "dineout book …";
   const out = [title("Payment methods", ctx, data.paymentAmount ? `for ${s(data.paymentAmount)}` : "")];
   const rows: string[][] = all.map((m) => {
     const id = s(m.id);
@@ -592,6 +667,23 @@ export function viewFor(server: ServerName, tool: string): ((data: unknown, ctx:
     case "get_booking_status":
     case "cancel_booking":
       return wrap(booking);
+    case "discover_events":
+      return wrap((d, c) => scenesEvents(d, c, "Events"));
+    case "get_events_collection":
+      return wrap((d, c) => scenesEvents(d, c, "Events in this genre ·"));
+    case "search_events":
+      return wrap(scenesSuggestions);
+    case "get_event_details":
+      return wrap(scenesDetails);
+    case "list_event_shows":
+      return wrap(scenesShows);
+    case "create_event_cart":
+    case "get_event_cart":
+      return wrap(eventCart);
+    case "place_event_order":
+      return wrap((d, c) => (d.status === "PENDING_PAYMENT" ? placedOrder(d, c, "scenes") : booking(d, c)));
+    case "get_event_booking_status":
+      return wrap((d, c) => booking(isRec(d.booking) ? d.booking : d, c));
     case "get_addresses":
       return wrap((d, c) => addresses(d, c, "addresses"));
     case "get_saved_locations":

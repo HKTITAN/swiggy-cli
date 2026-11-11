@@ -136,7 +136,13 @@ export function actionFor(kind: Kind | undefined, server: string | undefined, n:
     case "addresses":
       return { special: "default-address" };
     case "locations":
-      return { prefill: `dineout search  --address-id ${n}` };
+      return { run: `scenes discover --address-id ${n}` };
+    case "events":
+      return { run: `scenes shows ${n}` };
+    case "collections":
+      return { run: `scenes collection ${n}` };
+    case "shows":
+      return { prefill: `scenes cart --show ${n} --guests 2` };
     default:
       return {};
   }
@@ -161,7 +167,10 @@ const HINT_FOR: Partial<Record<Kind, string>> = {
   slots: "Enter: prepare booking",
   orders: "Enter: order details",
   addresses: "Enter: make default address",
-  locations: "Enter: search near it",
+  locations: "Enter: events near it",
+  events: "Enter: show times",
+  collections: "Enter: open genre",
+  shows: "Enter: hold tickets",
   coupons: "",
 };
 
@@ -402,7 +411,7 @@ export async function runApp(buildProgram: () => Command, io: AppIO = { stdin: p
   function helpText(): string {
     return [
       paint(PALETTE.orange, "swiggy app", undefined, true),
-      "  Type any swiggy command (without 'swiggy'), e.g.  food search biryani  ·  instamart search milk  ·  dineout search italian --address-id 1",
+      "  Type any swiggy command (without 'swiggy'), e.g.  food search biryani  ·  instamart search milk  ·  dineout search italian --lat 12.97 --lng 77.59  ·  scenes discover --lat 12.97 --lng 77.59",
       "  ↑ ↓         move the selection over the numbered rows of the last listing",
       "  Enter       run the typed command, or act on the selected row (menu / add to cart / slots / booking / order details)",
       "  Tab         complete the command; ← → move the caret; Esc clears the line; ↑ ↓ recall history when there is no listing",

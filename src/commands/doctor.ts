@@ -5,7 +5,7 @@ import { SERVER_NAMES } from "../types/index.js";
 import { DOCS, getCurrentProfile, endpointFor } from "../lib/config.js";
 import { loadAuth, discoverOAuthMetadata, evaluateAuthHealth } from "../lib/auth.js";
 import { McpClient } from "../lib/mcp.js";
-import { TOOL_CATALOG } from "../lib/aliases.js";
+import { LEGACY_TOOLS, TOOL_CATALOG } from "../lib/aliases.js";
 import { PATHS } from "../lib/paths.js";
 import { VERSION, USER_AGENT } from "../lib/version.js";
 import { detectColorLevel, supportsProgressBar, terminalContext } from "../lib/term.js";
@@ -38,7 +38,7 @@ export function buildDoctorCommand(program: Command): void {
           const ctx = terminalContext();
           checks.push({ check: "terminal", ok: true, soft: true, detail: `${ctx.brand}, color level ${detectColorLevel()}, progress bar ${supportsProgressBar(ctx) ? "yes" : "no"}` });
 
-          const sp = startSpinner("checking Swiggy MCP", opts);
+          const sp = startSpinner("checking Swiggy", opts);
           for (const s of SERVER_NAMES) {
             const url = endpointFor(s, profile);
             checks.push({ check: `${s}.endpoint`, ok: true, detail: url });
@@ -61,8 +61,9 @@ export function buildDoctorCommand(program: Command): void {
               const tools = await c.listTools();
               const live = new Set(tools.map((t) => t.name));
               const missing = TOOL_CATALOG[s].filter((n) => !live.has(n));
-              const extra = tools.map((t) => t.name).filter((n) => !TOOL_CATALOG[s].includes(n));
-              checks.push({ check: `${s}.tools/list`, ok: tools.length > 0, detail: `${tools.length} tools${c.lastRateLimit?.remaining !== undefined ? ` · rate limit ${c.lastRateLimit.remaining}/${c.lastRateLimit.limit}` : ""}` });
+              const extra = tools.map((t) => t.name).filter((n) => !TOOL_CATALOG[s].includes(n) && !LEGACY_TOOLS[s].includes(n));
+              const legacyLive = LEGACY_TOOLS[s].filter((n) => live.has(n));
+              checks.push({ check: `${s}.tools/list`, ok: tools.length > 0, detail: `${tools.length} tools${legacyLive.length ? ` · still enabled for you, though no longer in the published reference: ${legacyLive.join(", ")}` : ""}` });
               checks.push({
                 check: `${s}.catalog-drift`,
                 ok: missing.length === 0 && extra.length === 0,

@@ -1,11 +1,11 @@
 ---
 name: swiggy-mcp-food
-description: Order food for delivery through the Swiggy Food MCP server (mcp.swiggy.com/food) — address → search → menu → cart → coupon → place order → track. Use when an agent with Swiggy Food tools must find restaurants or dishes, build a cart, apply coupons, place or track a delivery order. Assumes the swiggy-mcp skill.
+description: Order food for delivery through the Swiggy Food server (mcp.swiggy.com/food, 20 tools) by calling its tools directly — address → search → menu → cart → coupon → place order → track. Use when an agent with Swiggy Food tools must find restaurants or dishes, build a cart, apply coupons, place or track a delivery order. Assumes the swiggy-mcp skill.
 license: MIT
-compatibility: Requires the Swiggy Food MCP server connected and the user signed in.
+compatibility: Requires the Swiggy Food server connected and the user signed in.
 metadata:
   author: HKTITAN
-  version: "0.2.4"
+  version: "0.3.0"
   reference: https://mcp.swiggy.com/builders/docs/reference/food/
 ---
 
@@ -25,18 +25,18 @@ get_addresses → search_restaurants | search_menu → get_restaurant_menu → u
 5. **Quantity change on a customised item: ask** whether the extra unit gets the same add-ons (and mention unpicked ones) before updating. Items without variants/addons can change directly.
 6. **One restaurant per cart.** Adding from another restaurant flushes the cart — warn with what will be lost and get a yes. Use `flush_food_cart` only when the user says start over.
 7. **Coupons:** `fetch_food_coupons { restaurantId, addressId }` then `apply_food_coupon { couponCode, addressId }`. A coupon is applied only when `offers.coupon_discount > 0`; `coupon_applied` with `coupon_discount: 0` is a suggestion, not a saving. Coupons that require online payment do not work on Cash — pay by UPI or skip.
-8. **Before `place_food_order`:** `get_food_cart` again; state the items, `pricing.to_pay`, the exact delivery address text and the payment method; ask "Do you want to proceed with placing this order to this address?"; wait for a clear yes. Builders Club Food carts are capped at ₹1000.
-9. **Place:** `place_food_order { addressId, paymentMethod?, intentApp?, generateUPIQR?, noteToRestaurant? }`. Cash → placed immediately; use `message` verbatim ("Swiggy order placed successfully"). UPI → `status: "PENDING_PAYMENT"` — **not placed yet**; say "Complete the payment in your UPI app — I'll confirm once payment succeeds" and follow `swiggy-mcp-payments`. Never claim placement on a pending response.
+8. **Before `place_food_order`:** `get_food_cart` again; state the items, `pricing.to_pay`, the exact delivery address text and the payment method; ask "Do you want to proceed with placing this order to this address?"; wait for a clear yes.
+9. **Place:** `place_food_order { addressId, paymentMethod?, intentApp?, generateUPIQR?, noteToRestaurant? }`. Cash → placed immediately; use `message` verbatim ("Swiggy order placed successfully"). UPI → `status: "PENDING_PAYMENT"` — **not placed yet**; say "Complete the payment in your UPI app — I'll confirm once payment succeeds" and follow `swiggy-mcp-payments`. Never claim placement on a pending response. Swiggy Money → only when `get_payment_options` returned `swiggyMoney.available: true` and the user chose it: `paymentMethod: "SwiggyPay"`, no `intentApp`, no `generateUPIQR`; the balance is debited during placement and no polling or `confirm_order` follows.
 10. **Track:** `track_food_order { orderId? }` (omit for all active orders) or `get_food_delivery_status { orderId }` for structured ETA + terminal state. Poll ≥ 10 s apart. History: `get_food_orders { addressId, activeOnly? }`, details: `get_food_order_details { orderId }`.
 11. **Cancellation:** do not call any tool; say "To cancel your order, please call Swiggy customer care at 080-67466729."
 
 ## Failure → response
 
 - Restaurant closed between search and order → re-run `search_restaurants`.
-- Minimum order not met / cart over ₹1000 → ask the user to adjust items.
+- Minimum order not met, or the cart value is rejected → relay `error.message` and ask the user to adjust items. Do not quote a limit from memory.
 - Coupon requires online payment → offer UPI or drop the coupon.
-- 5xx on `place_food_order` → `get_food_orders { addressId, activeOnly: true }` before any retry.
+- Network error or 5xx on `place_food_order` → wait 2–5 s, then `get_food_orders { addressId, activeOnly: true }`. Never retry blind: the call is not de-duplicated and has no idempotency key. An order waiting for payment is not placed yet; follow its status.
 
 ## Agent prompt (paste into your system prompt)
 
-> You help users order food on Swiggy. Resolve the saved address with `get_addresses` before searching. Recommend only `OPEN` restaurants. Read the cart before every mutation and before placing. Confirm items, total and address, and get an explicit yes before `place_food_order` — it places a real order. On a `PENDING_PAYMENT` response, tell the user to complete payment; never say the order is placed until `confirm_order` succeeds. Never exceed a ₹1000 cart.
+> You help users order food on Swiggy. Resolve the saved address with `get_addresses` before searching. Recommend only `OPEN` restaurants. Read the cart before every mutation and before placing. Confirm items, total and address, and get an explicit yes before `place_food_order` — it places a real order. On a `PENDING_PAYMENT` response, tell the user to complete payment; never say the order is placed until `confirm_order` succeeds. Never retry `place_food_order` after an error without checking `get_food_orders` first.

@@ -36,3 +36,18 @@ Append-only. `grep "^## \[" log.md | tail -5` shows recent activity.
 ## [2026-09-05] ingest | signed-in live capture (tools/list, schemas, auth state) + 0.1.4 vs 0.2.0 benchmark
 - raw/2026-09-05-live-tools-and-schemas.md → sources/live-captures-2026-09-05 (new section), concepts/oauth-on-swiggy-mcp (refresh token issued), concepts/rate-limits-and-sessions (no headers), entities/instamart-server (gating), entities/dineout-server (render_restaurants_dineout, tidOverride), entities/swiggy-mcp, entities/swiggy-cli (benchmark, download count).
 - open-questions: 4 resolved, 2 added. CLI: doctor wording changed to "not enabled for this account yet".
+
+## [2026-11-11] ingest | Swiggy Builders Club docs (llms-full.txt, 630 KB)
+- Source page: sources/swiggy-builders-docs-2026-11 (not vendored; 629,716 bytes, llms.txt 30,097 bytes). `raw/README.md` was not touched in this pass and still lists only the September fetch.
+- New: entities/scenes-server; synthesis/what-changed-sep-to-nov-2026.
+- Updated: overview; entities/swiggy-mcp (four servers, 62 tools), food-server (Swiggy Money, ₹1000 cap demoted to unverified), instamart-server (16 tools, coupon and order-detail tools removed, `confirmDuplicate`, gift-pack beta), dineout-server (11 tools, coordinates-only search, cancel and saved locations removed, `render_restaurants_dineout` documented), payment-stage (Scenes, FREE, `swiggyMoney.available`), swiggy-money (GA 2026-09-30), builders-club (brand guidelines, read-tool-results), swiggy-cli (0.3.0), agent-skills (16), agent-plugins (four servers); concepts/oauth-on-swiggy-mcp (refresh works), rate-limits-and-sessions (numbers and headers withdrawn, stateless transport), error-taxonomy (result reading, no dedupe), cart-state, headless-payments, native-cli-feel.
+- Contradictions recorded on the source page: changelog page still says three servers / 19 Instamart / 12 Dineout tools, COD-only Food and unshipped widgets; recipes still quote ₹1000 and ₹99; what-is page promises canonical error codes; brand guidelines omit Scenes. Resolved in favour of the reference.
+- Product docs that had to change: `wiki/` (all pages except the generated catalog), every `skills/*/SKILL.md`, `AGENTS.md`, `SECURITY.md`, `CONTRIBUTING.md`; two new skills (`swiggy-scenes`, `swiggy-mcp-scenes`).
+
+## [2026-11-11] query | "What changed on Swiggy MCP since 0.2.x (September 2026)?"
+- Filed as synthesis/what-changed-sep-to-nov-2026; drove the 0.3.0 release scope.
+
+## [2026-11-11] lint | after the November ingest
+- open-questions: 6 resolved by the new docs (Swiggy Money surface, token endpoint encoding, refresh grant, `render_restaurants_dineout`, deprecation metadata, rate-limit headers), 7 added (no live Scenes capture, legacy tools, plaintext token storage, session id on a stateless transport, real `Retry-After` values, ₹1000 / ₹99 limits, Scenes attribution).
+- 0 orphans: scenes-server, swiggy-builders-docs-2026-11 and what-changed-sep-to-nov-2026 are linked from index and from sibling pages.
+- Not done: `SCHEMA.md` still names three servers in its Domain line (humans own that file); `raw/README.md` has no row for the November fetch (raw/ was out of scope).

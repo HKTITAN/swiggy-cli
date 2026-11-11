@@ -1,0 +1,40 @@
+{
+  "$schema": "https://skills.sh/schemas/skills.sh.schema.json",
+  "notGrouped": "bottom",
+  "groupings": [
+    {
+      "title": "Start here",
+      "description": "The entry points. Install one of these first; the task skills assume it.",
+      "skills": [
+        "swiggy-cli",
+        "swiggy-mcp"
+      ]
+    },
+    {
+      "title": "Use the CLI",
+      "description": "Drive the swiggy command from an agent: one JSON envelope per command, stable exit codes, confirmation gates.",
+      "skills": [
+        "swiggy-search",
+        "swiggy-cart",
+        "swiggy-checkout",
+        "swiggy-pay",
+        "swiggy-track",
+        "swiggy-address",
+        "swiggy-dineout-booking",
+        "swiggy-scenes"
+      ]
+    },
+    {
+      "title": "Use Swiggy directly",
+      "description": "Call Swiggy's servers from your own agent, without the CLI: tool order, parameters, payments.",
+      "skills": [
+        "swiggy-mcp-food",
+        "swiggy-mcp-instamart",
+        "swiggy-mcp-dineout",
+        "swiggy-mcp-scenes",
+        "swiggy-mcp-payments",
+        "swiggy-mcp-docs"
+      ]
+    }
+  ]
+}

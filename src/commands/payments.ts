@@ -49,7 +49,7 @@ export function describeOrder(server: ServerName, choice: PayChoice | undefined)
     : choice.kind === "upi-qr" ? "UPI (scan-or-tap link)"
     : choice.kind === "upi-intent" ? `UPI app ${choice.intentApp}`
     : choice.paymentMethod;
-  const what = server === "dineout" ? "Book this table" : server === "instamart" ? "Place this Instamart order" : "Place this food order";
+  const what = server === "dineout" ? "Book this table" : server === "scenes" ? "Book these tickets" : server === "instamart" ? "Place this Instamart order" : "Place this food order";
   return `${what} and pay with ${method}`;
 }
 
@@ -136,16 +136,24 @@ async function invokeToolQuiet(server: ServerName, tool: string, args: unknown, 
   return invokeTool(server, tool, args, { ...opts, quiet: true });
 }
 
-export function attachPaymentCommands(server: ServerName, parent: Command): void {
+export function attachPaymentCommands(server: ServerName, parent: Command, defaultCartKey?: () => Promise<string | undefined>): void {
   attachOutputOptions(
     parent
       .command("payment-options")
-      .description("Live payment methods for the current cart (UPI apps, scan-QR, Cash, SwiggyPay when offered)")
+      .description(server === "scenes" ? "Live payment methods for your ticket cart (UPI apps, scan-QR; no Cash on Scenes)" : "Live payment methods for the current cart (UPI apps, scan-QR, Cash, Swiggy Money when offered)")
       .option("--address-id <id>", "Food only: the addressId used for the cart (recommended for UPI)")
-      .action(async (o: { addressId?: string }) => {
+      .option("--cart-key <key>", "Scenes only: cartKey from `scenes cart` (defaults to the last one)")
+      .action(async (o: { addressId?: string; cartKey?: string }) => {
         const opts = readGlobalOpts(parent);
         await run(opts, async () => {
-          const out = await invokeTool(server, "get_payment_options", server === "food" ? compactArgs({ addressId: o.addressId }) : {}, opts);
+          let args: Record<string, unknown> = {};
+          if (server === "food") args = compactArgs({ addressId: o.addressId });
+          if (server === "scenes") {
+            const cartKey = o.cartKey ?? (await defaultCartKey?.());
+            if (!cartKey) throw new UsageError("Scenes payment-options needs a ticket cart.", "Create one: swiggy scenes cart --show <#> --guests 2, or pass --cart-key");
+            args = { cartKey };
+          }
+          const out = await invokeTool(server, "get_payment_options", args, opts);
           await renderOutcome(server, "get_payment_options", out, opts, (data, ctx) => renderPaymentOptions(server, data, ctx));
         });
       })
@@ -206,8 +214,8 @@ export function attachPaymentCommands(server: ServerName, parent: Command): void
       .command("confirm-order")
       .description("Finalize a PENDING_PAYMENT order after payment succeeded (idempotent)")
       .requiredOption("--order-id <id>", "orderId from the place-order response")
-      .option("--paas-id <id>", "Instamart/Dineout: paasId from the place-order response")
-      .option("--transaction-id <id>", "Instamart/Dineout: transactionId from the place-order response")
+      .option("--paas-id <id>", "Instamart/Dineout/Scenes: paasId from the place-order response")
+      .option("--transaction-id <id>", "Instamart/Dineout/Scenes: transactionId from the place-order response")
       .option("--address-id <id>", "Food: addressId echoed from place_food_order (required)")
       .option("--cart-id <id>", "Food: cartId echoed from place_food_order")
       .option("--lat <lat>", "Food: lat echoed from place_food_order (required)")
@@ -227,7 +235,7 @@ export function attachPaymentCommands(server: ServerName, parent: Command): void
             requireFlag(o.lat, "--lat");
             requireFlag(o.lng, "--lng");
           }
-          if (server !== "food" && !o.input) requireFlag(o.paasId, "--paas-id", "Instamart/Dineout confirm_order needs orderId + paasId");
+          if (server !== "food" && !o.input) requireFlag(o.paasId, "--paas-id", "Instamart/Dineout/Scenes confirm_order needs orderId + paasId");
           const out = await invokeTool(server, "confirm_order", args, opts);
           await renderOutcome(server, "confirm_order", out, opts);
         });
@@ -269,7 +277,7 @@ function renderPaymentOptions(server: ServerName, data: unknown, ctx: ExecOpts):
   const d = (data && typeof data === "object" ? data : {}) as Record<string, unknown>;
   const all = Array.isArray(d.allMethods) ? (d.allMethods as Array<Record<string, unknown>>) : [];
   const lines: string[] = [];
-  const placeCmd = server === "food" ? "food checkout" : server === "instamart" ? "instamart checkout" : "dineout book";
+  const placeCmd = server === "food" ? "food checkout" : server === "instamart" ? "instamart checkout" : server === "scenes" ? "scenes book" : "dineout book";
   if (d.paymentAmount) lines.push(`amount: ${String(d.paymentAmount)}`);
   if (all.length === 0 && !d.cod) lines.push("No payment methods returned for this cart.");
   for (const m of all) {

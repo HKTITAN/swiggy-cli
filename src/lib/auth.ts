@@ -13,24 +13,32 @@ import type { AuthEntry, AuthState, ServerName } from "../types/index.js";
  * Swiggy MCP authentication — OAuth 2.1 Authorization Code + PKCE (S256).
  *
  * Verified against https://mcp.swiggy.com/builders/docs/start/authenticate/ and the live
- * metadata document on 2026-09-05:
+ * metadata document on 2026-11-11:
  *   - Authorization server: https://mcp.swiggy.com/auth
  *     (metadata at https://mcp.swiggy.com/.well-known/oauth-authorization-server)
  *   - Dynamic Client Registration (RFC 7591) IS supported at POST /auth/register, so no
  *     pre-issued client_id is needed. `--client-id` / SWIGGY_OAUTH_CLIENT_ID still override.
  *   - Scopes: mcp:tools mcp:resources mcp:prompts
  *   - Loopback redirect URIs http://127.0.0.1 and http://localhost (any port) are allowlisted.
- *   - ONE login covers all three servers (food, instamart, dineout) — the token is shared.
- *   - Access token lifetime: 5 days. Refresh-token issuance is NOT wired in v1.0 even though the
- *     metadata advertises the grant; on expiry we re-run the browser flow.
- *   - 401 → re-auth; 419 → session revoked → re-auth.
+ *   - ONE login covers all four servers (food, instamart, dineout, scenes) — the token is shared.
+ *   - Access token lifetime: 5 days. Refresh tokens ARE issued: POST /auth/token with a JSON body
+ *     { grant_type: "refresh_token", refresh_token } returns a token valid for 30 days and a new
+ *     (rotated) refresh token. An already-expired token cannot be refreshed, so the CLI refreshes
+ *     ahead of expiry (REFRESH_WINDOW_MS) and again on a 401.
+ *   - 401 → refresh, then re-auth if that fails; 419 → session revoked → re-auth.
  */
 
 const DEFAULT_PORT = 0; // ephemeral
 const DEFAULT_SCOPES = ["mcp:tools", "mcp:resources", "mcp:prompts"];
 const CALLBACK_TIMEOUT_MS = 5 * 60 * 1000;
-/** Refresh/expiry skew — the docs recommend proactively re-authenticating when ≤60s remain. */
+/** A token with ≤60s left is treated as expired (the docs' own skew). */
 const EXPIRY_SKEW_MS = 60_000;
+/**
+ * Refresh this long before expiry. A CLI is not a long-running process, so "refresh when ≤60s
+ * remain" would almost never fire, and an expired token cannot be refreshed at all. With a day of
+ * headroom, anyone who runs the CLI at least once in the last day of a token's life keeps the session.
+ */
+const REFRESH_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 async function ensureDir(file: string): Promise<void> {
   await mkdir(dirname(file), { recursive: true });
@@ -57,6 +65,40 @@ function isExpired(entry: AuthEntry | undefined): boolean {
   return Boolean(entry?.expiresAt && entry.expiresAt < Date.now() + EXPIRY_SKEW_MS);
 }
 
+function wantsRefresh(entry: AuthEntry | undefined): boolean {
+  return Boolean(entry?.refreshToken && entry.tokenEndpoint && entry.expiresAt && entry.expiresAt < Date.now() + REFRESH_WINDOW_MS);
+}
+
+/**
+ * Exchange the refresh token and store the rotated pair on EVERY server entry that shared the old
+ * token (one Swiggy session backs all servers; leaving a stale copy behind would break the others).
+ */
+async function refreshAndStore(auth: AuthState, server: ServerName, entry: AuthEntry): Promise<string> {
+  const oldToken = entry.accessToken;
+  const refreshed = await refreshAccessToken(entry);
+  const next: AuthEntry = { ...entry, ...refreshed, obtainedAt: Date.now() };
+  for (const [name, e] of Object.entries(auth.servers)) if (e.accessToken === oldToken) auth.servers[name] = { ...next };
+  auth.servers[server] = { ...next };
+  await saveAuth(auth);
+  return refreshed.accessToken;
+}
+
+/**
+ * Refresh now, regardless of the expiry clock. Used when a server answers 401 to a token the CLI
+ * still believed in. Returns true when a new token was stored.
+ */
+export async function forceRefresh(server: ServerName): Promise<boolean> {
+  const auth = await loadAuth();
+  const entry = auth.servers[server] ?? Object.values(auth.servers).find((e) => e.accessToken && e.refreshToken);
+  if (!entry?.refreshToken || !entry.tokenEndpoint) return false;
+  try {
+    await refreshAndStore(auth, server, entry);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Resolve a usable bearer token for `server`.
  * Swiggy issues one session token valid for every server, so if this server has no entry we
@@ -77,18 +119,22 @@ export async function getAccessToken(server: ServerName): Promise<string | undef
   if (isExpired(entry)) {
     if (entry.refreshToken && entry.tokenEndpoint) {
       try {
-        const refreshed = await refreshAccessToken(entry);
-        auth.servers[server] = { ...entry, ...refreshed };
-        await saveAuth(auth);
-        return refreshed.accessToken;
+        return await refreshAndStore(auth, server, entry);
       } catch (err) {
         throw new CliError("AUTH_FAILED", `Stored credentials for "${server}" have expired and could not be refreshed.`, {
-          hint: "Run: swiggy auth init  (Swiggy access tokens last 5 days; refresh tokens are not issued yet)",
+          hint: "Run: swiggy auth init  (Swiggy cannot refresh a token that has already expired; the CLI refreshes ahead of time when it is used within a day of expiry)",
           details: { reason: err instanceof Error ? err.message : String(err) },
         });
       }
     }
     return undefined;
+  }
+  if (wantsRefresh(entry)) {
+    try {
+      return await refreshAndStore(auth, server, entry);
+    } catch {
+      /* the current token is still valid; try again on the next call */
+    }
   }
   if (borrowed) {
     auth.servers[server] = { ...entry };
@@ -342,7 +388,7 @@ export async function interactiveAuthLogin(opts: InteractiveAuthOptions): Promis
         reject(new CliError("AUTH_FAILED", "Invalid OAuth callback (state mismatch or missing code)."));
         return;
       }
-      res.end(page("You're signed in", "swiggy-cli is now authenticated for Food, Instamart and Dineout. You can close this tab."));
+      res.end(page("You're signed in", "swiggy-cli is now signed in for Food, Instamart, Dineout and Scenes. You can close this tab."));
       server.close();
       resolve(code);
     });
@@ -399,8 +445,9 @@ interface TokenResponse {
 }
 
 /**
- * Exchange the authorization code. Standard OAuth uses application/x-www-form-urlencoded; the
- * Swiggy docs show a JSON body. We try form encoding first and fall back to JSON if rejected.
+ * Exchange the authorization code. Swiggy documents a JSON body for /auth/token (for both the code
+ * exchange and the refresh grant), so JSON goes first; a server that insists on the RFC 6749 form
+ * encoding (HTTP 415) gets one form-encoded retry.
  */
 async function exchangeCode(metadata: OAuthMetadata, client: OAuthClient, code: string, verifier: string, redirectUri: string): Promise<TokenResponse> {
   const params: Record<string, string> = {
@@ -427,9 +474,9 @@ async function postToken(tokenEndpoint: string, params: Record<string, string>):
     });
   let res: Response;
   try {
-    res = await attempt(false);
-    if (res.status === 400 || res.status === 415) {
-      const retry = await attempt(true);
+    res = await attempt(true);
+    if (res.status === 415) {
+      const retry = await attempt(false);
       if (retry.ok) res = retry;
     }
   } catch (err) {
@@ -439,7 +486,7 @@ async function postToken(tokenEndpoint: string, params: Record<string, string>):
   if (!res.ok) {
     throw new CliError("AUTH_FAILED", `Token exchange failed: ${res.status} ${res.statusText}`, {
       details: safeJson(text) ?? text.slice(0, 300),
-      hint: "Authorization codes are single-use and expire after 120s. Run swiggy auth init again.",
+      hint: "Run swiggy auth init again (authorization codes are single-use and last 120s; an expired token cannot be refreshed).",
     });
   }
   const tok = safeJson(text) as TokenResponse | undefined;
@@ -456,12 +503,11 @@ function safeJson(text: string): unknown {
 }
 
 async function refreshAccessToken(entry: AuthEntry): Promise<{ accessToken: string; refreshToken?: string; expiresAt?: number; tokenType?: string }> {
-  if (!entry.tokenEndpoint || !entry.refreshToken || !entry.clientId) {
-    throw new CliError("AUTH_FAILED", "Cannot refresh: missing token endpoint, refresh token, or client id.");
+  if (!entry.tokenEndpoint || !entry.refreshToken) {
+    throw new CliError("AUTH_FAILED", "Cannot refresh: missing token endpoint or refresh token.");
   }
-  const params: Record<string, string> = { grant_type: "refresh_token", refresh_token: entry.refreshToken, client_id: entry.clientId };
-  if (entry.clientSecret) params.client_secret = entry.clientSecret;
-  const tok = await postToken(entry.tokenEndpoint, params);
+  // Exactly the documented body: grant_type + refresh_token. No Authorization header, no client id.
+  const tok = await postToken(entry.tokenEndpoint, { grant_type: "refresh_token", refresh_token: entry.refreshToken });
   return {
     accessToken: tok.access_token,
     refreshToken: tok.refresh_token || entry.refreshToken,
@@ -475,7 +521,7 @@ async function registerDynamicClient(registrationEndpoint: string, redirectUri: 
     client_name: "swiggy-cli",
     client_uri: "https://github.com/HKTITAN/swiggy-cli",
     redirect_uris: [redirectUri],
-    grant_types: ["authorization_code"],
+    grant_types: ["authorization_code", "refresh_token"],
     response_types: ["code"],
     token_endpoint_auth_method: "none",
   };

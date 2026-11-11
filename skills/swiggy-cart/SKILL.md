@@ -1,11 +1,11 @@
 ---
 name: swiggy-cart
-description: Read and change a Swiggy Food or Instamart cart with swiggy-cli — add items, change quantities, apply coupons, clear. Use when the user says "add X", "make it two", "what's in my cart", "apply coupon", "empty my cart".
+description: Read and change a Swiggy Food or Instamart cart with swiggy-cli — add items, change quantities, apply Food coupons, clear. Use when the user says "add X", "make it two", "what's in my cart", "apply coupon", "empty my cart".
 license: MIT
 compatibility: Requires swiggy-cli signed in and a saved address (or defaultAddressId in the profile).
 metadata:
   author: HKTITAN
-  version: "0.2.4"
+  version: "0.3.0"
 ---
 
 # swiggy-cart
@@ -51,11 +51,11 @@ After any change, read the cart again and tell the user the new total from `pric
 ```bash
 swiggy food list-coupons --restaurant-id <rid> --json --no-interactive
 swiggy food apply-coupon <CODE> --json --no-interactive
-swiggy instamart list-coupons --json --no-interactive
-swiggy instamart apply-coupon <CODE> --json --no-interactive
 ```
 
-Some coupons require online payment; on a cash order they will not apply. If the user wants that coupon, route them to `swiggy-pay` (UPI). Instamart `list-coupons` / `apply-coupon` (and `order <id>`) are rolled out per account; on `NOT_FOUND` (exit 4) tell the user the feature is not enabled for their account yet and continue without it.
+Coupons are a Food feature. Some require online payment; on a cash order they will not apply. If the user wants that coupon, route them to `swiggy-pay` (UPI).
+
+Instamart coupons: Swiggy removed `list_coupons` and `apply_coupon` (and `get_order_details`) from its published reference in November 2026. `swiggy instamart list-coupons` / `apply-coupon` / `order <id>` remain as legacy commands and work only if the account still has the tool. On `MCP_ERROR` or `NOT_FOUND` from one of them, tell the user coupons cannot be applied to Instamart from here and continue without; do not retry.
 
 ## Clear (destructive)
 
@@ -69,5 +69,5 @@ Add `--yes` only after the user asked to empty the cart in this conversation. Ex
 ## What can go wrong
 
 - `MCP_ERROR` mentioning stock/serviceability → item unavailable at this address; offer alternatives from a new search.
-- `MCP_ERROR` "minimum order" → Instamart needs ₹99; Food Builders-Club orders are capped at ₹1000.
+- `MCP_ERROR` "minimum order" → the cart is below the store's minimum. Quote the amount from `error.message` (never assume one) and ask the user to add items.
 - `CART_EXPIRED` / empty cart after a long pause → rebuild from the user's last confirmed list, then confirm with them.

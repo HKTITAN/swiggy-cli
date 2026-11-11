@@ -1,0 +1,16 @@
+/* Shown at about three quarters of its size in a README column, so the type
+   is a step larger than in the 900-wide scenes. */
+.hero .hero-term { width: 880px; height: 600px; }
+.hero .hero-term .ss-term { font-size: 14px; }
+.hero .sx-tr { --sx-row: 36px; }
+
+.hero .hero-cart {
+  bottom: var(--gutter);
+  display: grid;
+  gap: 10px;
+  width: 248px;
+  padding: 16px;
+}
+
+.hero .hero-cart__fill { height: 18px; }
+.hero .hero-cart__total { font-size: 16px; font-weight: 700; }

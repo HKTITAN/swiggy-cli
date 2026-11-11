@@ -17,7 +17,7 @@ import type { ServerName } from "../types/index.js";
  * (restaurantId for a menu item, slot fields for a deal), so the user never re-types it.
  */
 
-export type RecentKind = "restaurants" | "menuItems" | "products" | "addresses" | "locations" | "dineout" | "slots" | "orders" | "coupons";
+export type RecentKind = "restaurants" | "menuItems" | "products" | "addresses" | "locations" | "dineout" | "slots" | "orders" | "coupons" | "events" | "collections" | "shows";
 
 export interface RecentEntry {
   id: string;
@@ -31,6 +31,9 @@ export interface RecentContext {
   addressId?: string;
   latitude?: number;
   longitude?: number;
+  /** Scenes: the event last looked at, and the venue `get_event_details` returned for it. */
+  eventId?: string;
+  venueId?: string;
 }
 
 interface RecentFile {
@@ -126,6 +129,8 @@ export interface Extracted {
   kind: RecentKind;
   entries: RecentEntry[];
   context?: RecentContext;
+  /** Extra numbered lists from the same response (e.g. the genre chips next to an events listing). */
+  more?: Array<{ kind: RecentKind; entries: RecentEntry[] }>;
 }
 
 /** Derive numbered entries (and follow-up context) from a tool's unwrapped `data`. */
@@ -193,6 +198,39 @@ export function extractRecent(server: ServerName, tool: string, data: unknown, e
         }
       }
       return { kind: "slots", entries, context: { restaurantId, latitude: numOr(data.latitude), longitude: numOr(data.longitude) } };
+    }
+    case "discover_events":
+    case "get_events_collection":
+      return {
+        kind: "events",
+        entries: arr(data.events).flatMap((e) => (str(e.eventId) ? [{ id: str(e.eventId)!, label: [str(e.eventName), str(e.venueName), str(e.date)].filter(Boolean).join(" · ") || str(e.eventId)! }] : [])),
+        more: [{ kind: "collections", entries: arr(data.collectionChips).flatMap((c) => (str(c.collectionIdentifier) ? [{ id: str(c.collectionIdentifier)!, label: str(c.label) ?? str(c.collectionIdentifier)! }] : [])) }],
+      };
+    case "search_events":
+      return { kind: "events", entries: arr(data.suggestions).flatMap((e) => (str(e.eventId) ? [{ id: str(e.eventId)!, label: [str(e.eventName), str(e.location)].filter(Boolean).join(" · ") || str(e.eventId)! }] : [])) };
+    case "get_event_details":
+      return { kind: "events", entries: [], context: { eventId: str(data.eventId), venueId: str(data.venueId) } };
+    case "list_event_shows": {
+      const listing = isRec(data.eventShowListing) ? data.eventShowListing : {};
+      const venue = isRec(listing.venueDetails) ? listing.venueDetails : {};
+      const info = isRec(listing.eventInfo) ? listing.eventInfo : {};
+      const venueId = str(venue.venueId) ?? str(extra?.venueId);
+      const entries: RecentEntry[] = [];
+      for (const day of arr(listing.dateGroupedEventShow)) {
+        for (const show of arr(day.eventShow)) {
+          const when = str(show.show_time_ist) ?? [str(day.date), isRec(show.timeRange) ? str(show.timeRange.startTime) : undefined].filter(Boolean).join(" ");
+          for (const t of arr(show.tickets)) {
+            if (show.showId === undefined || !str(t.ticketId)) continue;
+            entries.push({
+              id: `${show.showId}:${str(t.ticketId)}`,
+              label: `${when}${str(t.ticketTitle) ? ` · ${str(t.ticketTitle)}` : ""}${t.price !== undefined ? ` · ₹${t.price}` : ""}`,
+              extra: { venueId, showId: show.showId, ticketId: str(t.ticketId), showTime: show.show_time_unix, price: t.price },
+            });
+          }
+        }
+      }
+      // Rows from a listing that spans venues are not safe to book from, so they are not numbered.
+      return { kind: "shows", entries: venueId ? entries : [], context: { eventId: str(info.eventId) ?? str(extra?.eventId), venueId } };
     }
     case "get_food_orders":
       return { kind: "orders", entries: arr(data.orders).flatMap((o) => (str(o.orderId) ? [{ id: str(o.orderId)!, label: `${str(o.restaurantName) ?? ""} · ${str(o.orderStatus) ?? ""}`.trim() }] : [])) };

@@ -21,3 +21,6 @@ Resolution rule (SCHEMA): reference pages > live captures > blog/changelog > pro
 
 ## What it changed in the wiki
 Created most entity and concept pages on 2026-09-05. Drove swiggy-cli 0.2.0 ([what-changed-apr-to-sep-2026](../synthesis/what-changed-apr-to-sep-2026.md)).
+
+## Superseded
+The snapshot of 2026-11-11 ([swiggy-builders-docs-2026-11](swiggy-builders-docs-2026-11.md)) is the newest reference: four servers and 62 tools instead of three and 51, working refresh tokens, no published rate numbers. Claims on this page are kept as the record of what the docs said on 2026-09-05.

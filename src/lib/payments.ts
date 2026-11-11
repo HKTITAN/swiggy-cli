@@ -2,7 +2,7 @@ import { PaymentFailedError, UsageError } from "./errors.js";
 import type { ServerName } from "../types/index.js";
 
 /**
- * Shared Payment stage for Swiggy MCP (Food, Instamart, Dineout).
+ * Shared Payment stage for Swiggy (Food, Instamart, Dineout, Scenes).
  *
  * Source: https://mcp.swiggy.com/builders/docs/build/recipes/pay-with-upi/ (headless flow) and the
  * per-tool reference for get_payment_options / check_payment_status / confirm_order.
@@ -10,11 +10,11 @@ import type { ServerName } from "../types/index.js";
  *   get_payment_options → place-order (paymentMethod + intentApp | generateUPIQR)
  *     → PENDING_PAYMENT { paasId, orderId, bridgeUrl, pollingIntervalInMs, maxTimeToPollForInMs }
  *     → check_payment_status (long-poll, ~19s server hold; never tight-loop)
- *     → confirm_order (Food: orderId+addressId+lat+lng; Instamart/Dineout: orderId+paasId)
+ *     → confirm_order (Food: orderId+addressId+lat+lng; Instamart/Dineout/Scenes: orderId+paasId)
  *
- * Cash/COD has no payment leg. "SwiggyPay" (Swiggy Money, announced for MCP on 2026-09-04) is a
- * payment-method GROUP the server may return from get_payment_options; the CLI passes any group
- * name through verbatim and never invents one.
+ * Cash/COD has no payment leg and is never offered on Scenes. Swiggy Money (GA on Food and
+ * Instamart since 2026-09-30) shows up as a payment-method GROUP in get_payment_options when the
+ * account has it; the CLI passes any group name through verbatim and never invents one.
  */
 
 export type PayChoice =

@@ -2,6 +2,33 @@
 
 All notable changes to `swiggy-cli` are documented here. The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-11
+
+Catches up with what Swiggy changed between September and November 2026 (verified against <https://mcp.swiggy.com/builders/docs/> on 2026-11-11) and fixes two bugs in how the CLI talks to Swiggy.
+
+### Added
+- **Scenes** — Swiggy's fourth service (events and ticket booking, 15 tools) as `swiggy scenes` (alias `events`): `locations`, `discover`, `search`, `collection`, `details`, `venue`, `shows`, `cart`, `show-cart`, `book`, `status`, plus the shared `payment-options`, `payment-status`, `confirm-order` and `report-error`. `shows` looks up the venue for you (a listing without one cannot be booked from), `cart --show <#> --guests <n>` sends the exact show and ticket ids, and `book` handles both paths: free tickets book directly, paid tickets take `--pay upi --wait`. Scenes has no Cash option and `--pay cash` is refused. Numbered rows, native views and the app's Enter actions cover events, genres and shows. The existing login already covers Scenes.
+- `scripts/gen-tools-reference.mjs` (`npm run gen:tools`) regenerates `wiki/tools-catalog.md` and `skills/swiggy-mcp/references/tools.md` from Swiggy's `llms-full.txt`; `npm run check:tools` fails when `TOOL_CATALOG` no longer matches what Swiggy publishes.
+- `skills.sh.json` groups the bundled skills on the skills.sh repo page (Start here / Use the CLI / Use Swiggy directly). Two new skills: `swiggy-scenes` and `swiggy-mcp-scenes`.
+- `dineout search --sort <key>`.
+- A network failure on an order-placing command now says so: `details.mayHavePlacedOrder: true` and a hint to check your orders before trying again. Swiggy does not de-duplicate order placement.
+
+### Fixed
+- **Token refresh never ran.** The CLI only tried to refresh a token that was already within 60 seconds of expiry, and Swiggy cannot refresh an expired token, so every login ended in a full browser sign-in after 5 days. It now refreshes when under 24 hours remain (a refreshed token lasts 30 days), refreshes once more on an HTTP 401 before giving up, sends the JSON body Swiggy documents, requests the `refresh_token` grant at registration, and stores the rotated token on every service that shared the old one.
+- **Empty results from Dineout (and Scenes).** A response with an empty `structuredContent` was returned as `{}`. The CLI now follows Swiggy's documented reading order: `structuredContent` when it has data, otherwise the JSON envelope in `content`, including fields next to `data` such as the resolved `latitude` / `longitude`.
+- A failed call's message is taken from `structuredContent.error.message` (where Food and Instamart put it) before the prose summary.
+- The handshake is now remembered even when the server issues no `Mcp-Session-Id` (Swiggy documents its transport as stateless), so repeated invocations stop sending `initialize` each time. The record is tied to the token, expires after 12 hours, and a rejected one is redone once.
+
+### Changed
+- **Dineout search takes coordinates only.** Swiggy's reference now requires `latitude` and `longitude` and no longer accepts a saved address id; `--address-id` exits 2 with a hint. Set `defaultLat` / `defaultLng` in your profile once, or pass `--lat/--lng`.
+- Catalog: 62 tools — Food 20, Instamart 16, Dineout 11, Scenes 15. Commands for tools Swiggy no longer publishes (`instamart list-coupons`, `apply-coupon`, `order`; `dineout cancel`, `locations`) still exist, are marked `[legacy]` in `--help`, and are not counted as drift by `swiggy doctor`.
+- The plugin manifests and `.mcp.json` / `mcp.json` connect the fourth server.
+- The README has new product shots, built with Stageshow (source in `readme-scenes/`).
+
+### Removed
+- `meta.rateLimit` in the JSON envelope and the "70 req/min, 30/min for writes" figures in the `RATE_LIMITED` hint. Swiggy sends no `X-RateLimit-*` headers and publishes no numbers; the CLI was reporting values the server never sent. `RATE_LIMITED` (exit 9) and `details.retryAfterSeconds` are unchanged.
+- The hardcoded "Instamart needs ₹99 minimum; Food carts are capped at ₹1000" hint. Swiggy's message is shown as received.
+
 ## [0.2.4] - 2026-09-05
 
 ### Fixed

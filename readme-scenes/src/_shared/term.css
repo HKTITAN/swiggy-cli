@@ -1,0 +1,118 @@
+/* The look the README stills share, in Swiggy's own visual language (tokens
+   read from mcp.swiggy.com/builders): warm paper ground, near-black ink,
+   orange #FF5200 as the one accent, #FFEEE5 for soft fills. The kit's
+   terminal window is restyled light through its tokens. Mono is JetBrains
+   Mono; the sans is Plus Jakarta Sans, standing in for Swiggy's proprietary
+   face, which is not used. Both load from Google Fonts in index.html. */
+.sx .ss-stage {
+  --gutter: 40px;
+  --sx-orange: #ff5200;
+  --sx-ink: #10100f;
+  --sx-body: #4a4843;
+  --sx-dim: #8c877e;
+  --sx-ok: #1ba672;
+  --sx-warn: #d07d00;
+  --sx-tint: #ffeee5;
+  --sx-line: rgba(16, 16, 15, 0.15);
+  --sx-sans: 'Plus Jakarta Sans', 'Segoe UI', system-ui, sans-serif;
+  --sx-mono: 'JetBrains Mono', ui-monospace, Consolas, monospace;
+  overflow: hidden;
+  border-radius: 16px;
+  background: #f1ede6;
+}
+
+.sx .sx-term {
+  --ss-term-bg: #fff;
+  --ss-term-path: var(--sx-dim);
+  --ss-term-sigil: var(--sx-orange);
+  --ss-term-ok: var(--sx-ok);
+  --ss-term-dim: var(--sx-dim);
+  --ss-term-err: #fa3c5a;
+  position: absolute;
+  top: var(--gutter);
+  left: var(--gutter);
+  border-radius: 12px;
+  box-shadow: var(--ss-shadow-hero);
+}
+
+.sx .sx-term .ss-term__title { color: var(--sx-dim); font-family: var(--sx-sans); }
+
+.sx .sx-term .ss-term {
+  padding: 6px 20px 20px;
+  color: var(--sx-body);
+  font: 13px/1.65 var(--sx-mono);
+}
+
+.sx .sx-term .ss-term__cmd,
+.sx .sx-cmd { color: var(--sx-ink); }
+
+.sx .sx-term .ss-term__caret { background: var(--sx-ink); animation: none; }
+
+.sx .sx-o { color: var(--sx-orange); font-weight: 700; }
+.sx .sx-strong { color: var(--sx-ink); }
+.sx .sx-warn { color: var(--sx-warn); }
+
+/* The app header: the left run and the right run at the two ends of one line */
+.sx .sx-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  margin-bottom: 10px;
+}
+
+.sx .sx-head__right { display: flex; gap: 2ch; }
+
+/* The attribution badge. The mark is the repo's file, drawn square at its
+   own proportions; nothing else comes within 8px of the pair. */
+.sx .sx-badge { display: inline-flex; align-items: center; gap: 8px; color: var(--sx-ink); white-space: nowrap; }
+.sx .sx-logo { display: block; width: 24px; height: 24px; flex: none; }
+.sx .sx-badge__text { font: 600 14px/20px var(--sx-sans); }
+.sx .sx-badge[data-size='standard'] .sx-logo { width: 32px; height: 32px; }
+.sx .sx-badge[data-size='standard'] .sx-badge__text { font-size: 16px; line-height: 22px; }
+.sx .sx-head { align-items: center; }
+.sx .sx-head__right { align-items: center; }
+
+/* Listings */
+/* The table hugs its columns, so the selected row's fill keeps one inset at both ends */
+.sx .sx-table { display: flex; flex-direction: column; align-self: flex-start; margin: 4px -8px 0; white-space: nowrap; }
+
+.sx .sx-tr {
+  display: grid;
+  grid-template-columns: var(--cols);
+  column-gap: 2ch;
+  align-items: center;
+  height: var(--sx-row, 34px);
+  padding: 0 8px;
+  border-radius: 7px;
+}
+
+.sx .sx-th { height: 28px; color: var(--sx-dim); }
+
+.sx .sx-td { display: flex; align-items: center; min-width: 0; }
+
+.sx .sx-td[data-col='0'] { color: var(--sx-dim); }
+.sx .sx-td[data-col='1'] { color: var(--sx-ink); }
+
+/* The selected row: the app inverts the line; here it takes the accent's tint */
+.sx .sx-tr[data-selected] { background: var(--sx-tint); color: var(--sx-ink); }
+.sx .sx-tr[data-selected] .sx-td[data-col='0'] { color: var(--sx-orange); font-weight: 700; }
+.sx .sx-tr[data-selected] .sx-td[data-col='1'] { font-weight: 700; }
+
+/* Satellites: a white card a level above the window */
+.sx .sx-sat {
+  position: absolute;
+  right: var(--gutter);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: var(--ss-shadow-satellite);
+  color: var(--sx-body);
+  font-family: var(--sx-sans);
+  font-size: 12.5px;
+  line-height: 18px;
+}
+
+.sx .sx-sat__row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.sx .sx-sat__title { color: var(--sx-ink); font-size: 13px; font-weight: 600; }
+.sx .sx-sat__dim { color: var(--sx-dim); font-size: 12px; }
+.sx .sx-num { color: var(--sx-ink); font-variant-numeric: tabular-nums; }
+.sx .sx-rule { height: 1px; background: var(--sx-line); }

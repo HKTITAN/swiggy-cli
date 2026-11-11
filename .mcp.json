@@ -11,6 +11,10 @@
     "swiggy-dineout": {
       "type": "http",
       "url": "https://mcp.swiggy.com/dineout"
+    },
+    "swiggy-scenes": {
+      "type": "http",
+      "url": "https://mcp.swiggy.com/scenes"
     }
   }
 }

@@ -1,22 +1,22 @@
 # Payments
 
-Swiggy MCP added in-chat payments in July 2026 (<https://mcp.swiggy.com/builders/blog/2026-07-10-mcp-payments-upi/>) and announced **Swiggy Money on MCP** on 4 September 2026 (top up once, let the agent pay). The shared Payment stage is three tools that exist with the same shape on every server:
+Swiggy added UPI payments to its API in July 2026 (<https://mcp.swiggy.com/builders/blog/2026-07-10-mcp-payments-upi/>) and made **Swiggy Money** generally available on Food and Instamart on 30 September 2026 (<https://mcp.swiggy.com/builders/blog/2026-09-30-swiggy-money/>). The shared Payment stage is three tools that exist with the same shape on Food, Instamart, Dineout and Scenes:
 
 ```
 cart ready  ──► get_payment_options ──► place-order  ──► PENDING_PAYMENT  ──► check_payment_status ──► confirm_order ──► PLACED ──► track
-                                       food: place_food_order · instamart: checkout · dineout: book_table (after create_cart for paid deals)
+                                       food: place_food_order · instamart: checkout · dineout: book_table (after create_cart for paid deals) · scenes: place_event_order (after create_event_cart says UPI)
 ```
 
 ## `--pay` on checkout / book
 
 | `--pay` | Sent upstream | Result |
 | --- | --- | --- |
-| `cash` / `cod` | `paymentMethod: "Cash"` | placed immediately; no payment leg |
+| `cash` / `cod` | `paymentMethod: "Cash"` | placed immediately; no payment leg. Rejected on Scenes (exit 2): Scenes never offers Cash |
 | `upi` / `qr` | `paymentMethod: "UPI", generateUPIQR: true` | `PENDING_PAYMENT` + `bridgeUrl` (scan-or-tap page: QR on desktop, "open UPI app" on mobile) |
 | `upi:<intentApp>` | `paymentMethod: "UPI", intentApp: "<id>"` | `PENDING_PAYMENT` + `bridgeUrl` / `upiIntentUrl`; `<id>` copied verbatim from `payment-options` |
-| `swiggypay` / `swiggy-money` | `paymentMethod: "SwiggyPay"` | treated like Cash when the server offers the group; error otherwise |
+| `swiggypay` / `swiggy-money` | `paymentMethod: "SwiggyPay"` | Food and Instamart only, and only when `payment-options` offers Swiggy Money. The balance is debited during order placement: no pay link, no polling, no `confirm_order` |
 | `<AnyGroup>` | `paymentMethod: "<AnyGroup>"` | pass-through for future method groups |
-| (omitted) | nothing | the server's default (usually Cash when it is the only method) |
+| (omitted) | nothing | the server's default (usually Cash when it is the only method). On Scenes: a free cart books directly, a paid cart is refused with a hint to add `--pay upi` |
 
 `swiggy <server> payment-options` lists what this cart can pay with and prints the matching `--pay` value next to each method. The CLI never invents a method.
 
@@ -39,6 +39,7 @@ Without `--wait`, the pending envelope carries `meta.payment.bridgeUrl` and `met
 | Food | `paasId, orderId, addressId, cartId, lat, lng` — echoed from `place_food_order`; without them the order cannot be reconciled and stays pending | `orderId, addressId, lat, lng` (+`cartId`); **no `paasId`** |
 | Instamart | `paasId, orderId` | `orderId, paasId` (+`transactionId`) |
 | Dineout | `paasId, orderId` | `orderId, paasId` (+`transactionId`) |
+| Scenes | `paasId, orderId` | `orderId, paasId` (+`transactionId`) |
 
 `src/lib/payments.ts` (`paymentStatusArgs`, `confirmArgs`) encodes this; `test/payments.test.ts` pins it.
 
@@ -61,8 +62,24 @@ Without `--wait`, the pending envelope carries `meta.payment.bridgeUrl` and `met
 - Never ask the user for a UPI ID / VPA (NPCI compliance) — the link handles it.
 - Never tight-loop the long-poll.
 - `confirm_order` is idempotent and never places an unpaid order; calling it after a terminal failure is skipped.
-- Place-order tools are not idempotent: on a transport error the CLI does not retry; check `orders --active` first.
+- Order placement is not de-duplicated. `place_food_order`, `book_table` and `place_event_order` take no idempotency key; Instamart `checkout` may reject a likely duplicate and ask for `confirmDuplicate`. The CLI never retries any of them. On a network failure the error carries `details.mayHavePlacedOrder: true`: check `swiggy food orders` / `swiggy instamart orders` (or the Swiggy app for Dineout and Scenes) before placing again.
 
 ## Dineout paid deals
 
-`swiggy dineout cart --type DEAL_TICKET_PURCHASE …` returns `cartKey`; `swiggy dineout book … --cart-key <key> --pay upi --wait` completes it. Free deals (`isFree: true`) book directly without a payment leg. Bill payment at the table uses `--type DINEOUT --bill-amount <₹>`.
+`swiggy dineout cart --type DEAL_TICKET_PURCHASE …` returns `cartKey`; `swiggy dineout book … --cart-key <key> --pay upi --wait` completes it. Free deals (`isFree: true`) book directly without a payment leg. Bill payment at the table uses `--type DINEOUT --bill-amount <₹>`. Swiggy Money does not apply to Dineout.
+
+## Scenes tickets
+
+`swiggy scenes cart --show <#> --guests <n>` creates the ticket cart and reports its `checkoutMode`:
+
+| `checkoutMode` | What `swiggy scenes book` does |
+| --- | --- |
+| `FREE` | books directly with `paymentMethod: "FREE"` and echoes the selection (`venueId`, `showId`, `ticketId`, `showTime`, `guestCount`, coordinates) so Swiggy can reprice it. `--pay` is refused |
+| `UPI` | needs `--pay upi` (or `upi:<app>` from `swiggy scenes payment-options`); add `--wait` to poll and confirm in one command |
+| `UNAVAILABLE` | refused (exit 2); pick another show |
+
+The cart is remembered for 30 minutes, so `book`, `show-cart` and `payment-options` need no `--cart-key`. A booking that comes back `PROCESSING` is not final: run `swiggy scenes status <orderId>` until it is. Cash and Swiggy Money are never offered on Scenes.
+
+## Swiggy Money
+
+Offer it only when `payment-options` returns it (`swiggyMoney.available: true`, method id `SwiggyPay`). Availability does not mean the balance covers the order. A successful order needs no polling and no `confirm_order`. If the debit fails, nothing was placed; if the outcome is unknown, do not say "nothing was charged" and do not place again until the user has checked recent orders and the balance in the Swiggy app. Top-ups happen in the Swiggy app, not through the CLI.

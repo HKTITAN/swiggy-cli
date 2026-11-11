@@ -1,7 +1,7 @@
 ---
 title: Agent Plugins (1.0.0) and the Claude Code plugin format
 type: entity
-updated: 2026-09-05
+updated: 2026-11-11
 sources: [sources/agent-plugins-spec]
 tags: [plugins, agents]
 ---
@@ -13,10 +13,11 @@ Two packaging formats this repo satisfies at once: the vendor-neutral Agent Plug
 - Claude Code: `.claude-plugin/plugin.json` (name, version, description, author, skills path, mcpServers path…), `.claude-plugin/marketplace.json` (owner, `plugins[]` with `source: "./"`), `.mcp.json` with `{type:"http", url}` entries; install via `claude plugin marketplace add HKTITAN/swiggy-cli` then `claude plugin install swiggy@swiggy-cli` (repo `wiki/plugins.md`).
 
 ## In this repo
-`plugin.json` (name `swiggy-cli`, extension `com.anthropic.claude-code` pointing at the Claude manifests), `mcp.json` (three `streamable-http` servers), `.claude-plugin/plugin.json` + `marketplace.json`, `.mcp.json`. `swiggy mcp-config --client plugin` regenerates `mcp.json`.
+`plugin.json` (name `swiggy-cli`, extension `com.anthropic.claude-code` pointing at the Claude manifests), `mcp.json` (four `streamable-http` servers: `swiggy-food`, `swiggy-instamart`, `swiggy-dineout`, `swiggy-scenes`), `.claude-plugin/plugin.json` + `marketplace.json`, `.mcp.json`. `swiggy mcp-config --client plugin` regenerates `mcp.json`.
 
 ## Relationships
 - Contents: [agent-skills](agent-skills.md). Servers declared: [swiggy-mcp](swiggy-mcp.md).
 
 ## Changelog
 - 2026-09-05 — created.
+- 2026-11-11 — `swiggy-scenes` added to `mcp.json`. Superseded: "three `streamable-http` servers".

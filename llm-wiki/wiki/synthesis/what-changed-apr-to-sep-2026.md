@@ -27,4 +27,4 @@ Between swiggy-cli 0.1.4 (2026-04-30, built against a 35-tool catalog) and 0.2.0
 6. Ship skills/plugins so agents get the corrected knowledge.
 
 ## Still open
-See [open-questions](open-questions.md).
+See [open-questions](open-questions.md). The timeline continues in [what-changed-sep-to-nov-2026](what-changed-sep-to-nov-2026.md).

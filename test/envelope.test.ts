@@ -84,7 +84,7 @@ describe("addresses", () => {
   it("hints on common upstream errors", () => {
     expect(hintForToolError("food", "Invalid addressId: required")).toMatch(/addresses/);
     expect(hintForToolError("dineout", "latitude is required")).toMatch(/--lat/);
-    expect(hintForToolError("instamart", "Minimum order value not met")).toMatch(/99/);
+    expect(hintForToolError("instamart", "Minimum order value not met")).toMatch(/minimum order value/);
   });
 });
 

@@ -4,7 +4,7 @@ Agent: read this before touching anything under `llm-wiki/`. It is the contract 
 
 ## Domain
 
-Swiggy's MCP platform (Food, Instamart, Dineout servers; Builders Club; payments; auth; limits), the `swiggy-cli` that wraps it, and the agent-tooling standards it targets (Agent Skills, Agent Plugins, skills.sh) plus design references (Grok Build TUI). Time-sensitive: Swiggy ships changes monthly; every claim carries a date.
+Swiggy's MCP platform (Food, Instamart, Dineout, Scenes servers; Builders Club; payments; auth; limits), the `swiggy-cli` that talks to it directly, and the agent-tooling standards it targets (Agent Skills, Agent Plugins, skills.sh) plus design references (Grok Build TUI). Time-sensitive: Swiggy ships changes monthly; every claim carries a date.
 
 ## Layers
 

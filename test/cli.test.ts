@@ -64,19 +64,20 @@ describe("swiggy (built binary)", () => {
     expect(r.stdout.trim()).toBe(pkg.version);
   });
 
-  it("servers --json returns the three servers with tool counts", async () => {
+  it("servers --json returns the four servers with tool counts", async () => {
     const r = await cli(["servers", "--json"]);
     expect(r.code).toBe(0);
     expect(r.json?.ok).toBe(true);
     const data = r.json?.data as Array<{ name: string; toolCount: number }>;
-    expect(data.map((d) => [d.name, d.toolCount])).toEqual([["food", 20], ["instamart", 19], ["dineout", 12]]);
+    expect(data.map((d) => [d.name, d.toolCount])).toEqual([["food", 20], ["instamart", 16], ["dineout", 11], ["scenes", 15]]);
   });
 
-  it("call unwraps the Swiggy envelope, keeps message in meta, and exposes rate-limit headers", async () => {
+  it("call unwraps the Swiggy envelope and keeps message in meta (no invented rate-limit figures)", async () => {
     const r = await cli(["call", "food", "echo", "--input", '{"q":"biryani"}', "--json"]);
     expect(r.code).toBe(0);
     expect(r.json).toMatchObject({ ok: true, server: "food", tool: "echo", data: { args: { q: "biryani" } } });
-    expect(r.json?.meta).toMatchObject({ message: "echoed **ok**", rateLimit: { limit: 70, remaining: 69 } });
+    expect(r.json?.meta).toMatchObject({ message: "echoed **ok**" });
+    expect(r.json?.meta?.rateLimit).toBeUndefined();
   });
 
   it("--raw returns the untouched MCP result", async () => {

@@ -1,6 +1,6 @@
 # Contributing to swiggy-cli
 
-Thanks for considering a contribution! This is a community CLI for the official [Swiggy MCP servers](https://mcp.swiggy.com/builders/); upstream behaviour changes belong with Swiggy (builders@swiggy.in / the [manifest repo](https://github.com/Swiggy/swiggy-mcp-server-manifest)), but anything about how this CLI wraps them belongs here.
+Thanks for considering a contribution! This is a community CLI: a direct client for [Swiggy's public API](https://mcp.swiggy.com/builders/) (Food, Instamart, Dineout, Scenes). Upstream behaviour changes belong with Swiggy (builders@swiggy.in / the [manifest repo](https://github.com/Swiggy/swiggy-mcp-server-manifest)), but anything about how this CLI calls that API belongs here.
 
 ## Quick start
 
@@ -21,12 +21,12 @@ See [`wiki/architecture.md`](./wiki/architecture.md). One-line summary: `src/pro
 
 ## Adding an ergonomic command
 
-The Swiggy MCP servers expose 51 tools today; any tool is reachable via `swiggy call <server> <tool>` immediately. To add a friendly verb:
+Swiggy's API exposes 62 tools today (Food 20, Instamart 16, Dineout 11, Scenes 15); any tool is reachable via `swiggy call <server> <tool>` immediately. To add a friendly verb:
 
 1. Look the tool up: `swiggy docs reference/<server>/<tool>` — copy the parameter names exactly (camelCase upstream).
 2. Add it to `TOOL_CATALOG` and `ERGONOMIC_ALIASES` in [`src/lib/aliases.ts`](./src/lib/aliases.ts); add to `DESTRUCTIVE_TOOLS` if it spends money or destroys state.
 3. Add the verb in [`src/commands/<server>.ts`](./src/commands) using `run()`, `buildArgs()` and the validators from `common.ts` (see [`wiki/extending.md`](./wiki/extending.md) for a template).
-4. Document it in [`wiki/commands.md`](./wiki/commands.md) and, if agents should use it, in the relevant skill under `skills/`.
+4. Document it in [`wiki/commands.md`](./wiki/commands.md) and, if agents should use it, in the relevant skill under `skills/`. Do not edit `wiki/tools-catalog.md` or `skills/swiggy-mcp/references/tools.md` by hand: `npm run gen:tools` regenerates both from Swiggy's docs, and `npm run check:tools` fails when Swiggy's published tool list differs from `TOOL_CATALOG`.
 5. Add a mock response in `test/helpers/mock-mcp.ts` and a case in `test/cli.test.ts` when the verb has logic worth pinning.
 
 ## Output contract
@@ -35,7 +35,7 @@ Every command produces a structured envelope before rendering. The JSON shape is
 
 ## Skills and plugins
 
-Skills follow the [Agent Skills spec](https://agentskills.io/specification) and the writing rules in [`wiki/skills.md`](./wiki/skills.md): strict wording, the "why" beside every rule, one job per skill, under 500 lines. Plugin manifests (`plugin.json`, `mcp.json`, `.claude-plugin/`, `.mcp.json`) must keep the same version as `package.json`. `npm run validate:skills` checks all of it.
+Skills follow the [Agent Skills spec](https://agentskills.io/specification) and the writing rules in [`wiki/skills.md`](./wiki/skills.md): strict wording, the "why" beside every rule, one job per skill, under 500 lines. A new skill also goes into its group in `skills.sh.json`. Plugin manifests (`plugin.json`, `mcp.json`, `.claude-plugin/`, `.mcp.json`) must keep the same version as `package.json`. `npm run validate:skills` checks all of it.
 
 ## Coding style
 
@@ -50,7 +50,9 @@ Skills follow the [Agent Skills spec](https://agentskills.io/specification) and 
 - `test/smoke.test.ts` — catalog integrity, error contract, version.
 - `test/payments.test.ts` — `--pay` parsing, per-server confirm contract, status classification, poll loop with a virtual clock.
 - `test/envelope.test.ts` — payload extraction, envelope unwrapping, SSE parsing, renderer helpers, terminal helpers.
-- `test/mcp-client.test.ts` — `McpClient` against `test/helpers/mock-mcp.ts` (sessions, expiry recovery, SSE, 401/419/429/-32001).
+- `test/mcp-client.test.ts` — `McpClient` against `test/helpers/mock-mcp.ts` (remembered handshake, recovery when it is rejected, SSE, 401/419/429/-32001).
+- `test/auth-refresh.test.ts` — token refresh ahead of expiry, on a 401, across servers that share a token; the handshake record without a session id.
+- `test/scenes.test.ts` — the Scenes booking path on the built binary (discover → shows → cart → book free / UPI → status), and Dineout search rejecting a saved address.
 - `test/cli.test.ts` — the built `dist/cli.js` end to end against the mock server.
 
 Live Swiggy calls are not exercised in CI (they need a real account and place real orders). Do a manual pass with `swiggy doctor` and a read-only command before releasing.

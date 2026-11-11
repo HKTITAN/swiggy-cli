@@ -41,7 +41,7 @@ With 2FA on the account, npm prints a browser URL (or opens it) and **stages** t
 
 ```bash
 git checkout main && git pull
-npm ci && npm run lint && npm test && npm run validate:skills && npm pack --dry-run
+npm ci && npm run lint && npm test && npm run validate:skills && npm run check:tools && npm pack --dry-run
 
 # bump the version in ALL manifests (package.json, plugin.json, .claude-plugin/plugin.json, .claude-plugin/marketplace.json)
 npm version minor --no-git-tag-version
@@ -67,16 +67,16 @@ npx -p swiggy-cli@latest swiggy --version
 
 ## What gets published
 
-Per `files` in `package.json`: `dist/`, `README.md`, `AGENTS.md`, `CHANGELOG.md`, `wiki/`, `skills/`, `plugin.json`, `mcp.json`, `.mcp.json`, `.claude-plugin/`, `assets/`, `LICENSE`. Sources, tests and workflows stay on GitHub. `npm pack --dry-run` shows the exact list.
+Per `files` in `package.json`: `dist/`, `README.md`, `AGENTS.md`, `CHANGELOG.md`, `wiki/`, `skills/`, `skills.sh.json`, `plugin.json`, `mcp.json`, `.mcp.json`, `.claude-plugin/`, `assets/swiggy-logo.svg`, `LICENSE` (the README images in `assets/readme/` and their source in `readme-scenes/` are not shipped). Sources, tests and workflows stay on GitHub. `npm pack --dry-run` shows the exact list.
 
 ## Pre-releases
 
 ```bash
-npm version 0.3.0-rc.1 --no-git-tag-version
+npm version 0.4.0-rc.1 --no-git-tag-version
 npm publish --tag next --access public --provenance
 ```
 
-Users opt in with `npm i -g swiggy-cli@next`; promote with `npm dist-tag add swiggy-cli@0.3.0-rc.1 latest`.
+Users opt in with `npm i -g swiggy-cli@next`; promote with `npm dist-tag add swiggy-cli@0.4.0-rc.1 latest`.
 
 ## Yanking
 

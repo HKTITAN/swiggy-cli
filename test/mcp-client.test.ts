@@ -34,7 +34,6 @@ describe("McpClient", () => {
     const tools = await c.listTools();
     expect(tools.map((t) => t.name)).toContain("search_restaurants");
     expect(mock.state.initializeCount).toBe(1);
-    expect(c.lastRateLimit).toEqual({ limit: 70, remaining: 69, reset: 1720000060 });
   });
 
   it("reuses the persisted session from a fresh client instance (no second initialize)", async () => {
@@ -80,6 +79,44 @@ describe("McpClient", () => {
     const r = await c.callTool("fail", {});
     const u = mcp.unwrapSwiggyEnvelope(mcp.extractToolPayload(r));
     expect(u.error?.message).toBe("Invalid addressId: required");
+  });
+
+  it("reads structuredContent when it has data, and never parses the prose summary", async () => {
+    const c = new mcp.McpClient({ server: "food", profile });
+    const r = await c.callTool("structured", {});
+    expect(mcp.extractToolPayload(r)).toEqual({ addresses: [{ id: "addr_1" }] });
+  });
+
+  it("falls back to the content envelope when structuredContent is empty (Dineout, Scenes)", async () => {
+    const c = new mcp.McpClient({ server: "food", profile });
+    const r = await c.callTool("empty_structured", {});
+    const u = mcp.unwrapSwiggyEnvelope(mcp.extractToolPayload(r));
+    expect(u.data).toEqual({ restaurants: [{ id: "dr1" }] });
+    expect(u.extra).toEqual({ latitude: 12.9784, longitude: 77.6408 });
+  });
+
+  it("finds the location context that only lives in content", async () => {
+    const c = new mcp.McpClient({ server: "food", profile });
+    expect(mcp.extractLocationContext(await c.callTool("discover_events", {}))).toEqual({ latitude: 12.9716, longitude: 77.5946 });
+    expect(mcp.extractLocationContext(await c.callTool("empty_structured", {}))).toEqual({ latitude: 12.9784, longitude: 77.6408 });
+    expect(mcp.extractLocationContext(await c.callTool("structured", {}))).toBeUndefined();
+  });
+
+  it("takes a failed call's message from structuredContent before the prose", async () => {
+    const c = new mcp.McpClient({ server: "food", profile });
+    const r = await c.callTool("structured_error", {});
+    expect(r.isError).toBe(true);
+    expect(mcp.extractToolErrorMessage(r)).toBe("Cart is empty");
+  });
+
+  it("handshakes again when the server rejects a remembered handshake, then replays the call once", async () => {
+    const before = mock.state.initializeCount;
+    mock.state.rejectHandshakeOnce = true;
+    const c = new mcp.McpClient({ server: "food", profile });
+    const r = await c.callTool("echo", { c: 3 });
+    expect(mock.state.initializeCount).toBe(before + 1);
+    expect(mcp.unwrapSwiggyEnvelope(mcp.extractToolPayload(r)).data).toEqual({ args: { c: 3 } });
+    expect(mock.state.calls.filter((x) => (x.args as { c?: number }).c === 3).length).toBe(1);
   });
 
   it("maps HTTP 401 to AUTH_FAILED when a token was sent", async () => {

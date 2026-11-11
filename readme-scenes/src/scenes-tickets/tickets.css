@@ -1,0 +1,18 @@
+.st .st-term { width: 710px; height: 560px; }
+.st .st-term .ss-term { font-size: 12.5px; }
+
+/* A ticket: two parts joined at a dashed tear, a notch bitten out of each side */
+.st .st-ticket { bottom: var(--gutter); width: 220px; }
+
+.st .st-ticket__top { display: grid; justify-items: start; gap: 6px; padding: 16px 16px 14px; }
+.st .st-ticket__name { margin-top: 4px; color: var(--sx-ink); font-size: 14px; font-weight: 600; line-height: 19px; }
+
+.st .st-ticket__tear {
+  height: 0;
+  margin: 0 16px;
+  border-top: 1px dashed var(--sx-line);
+}
+
+.st .st-ticket__foot { display: grid; gap: 12px; padding: 14px 16px 16px; }
+.st .st-ticket__total { font-size: 15px; font-weight: 700; }
+.st .st-ticket__fill { height: 14px; }

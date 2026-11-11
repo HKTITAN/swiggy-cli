@@ -80,7 +80,7 @@ export function buildProfileCommands(program: Command): void {
             if (!Number.isFinite(v)) throw new UsageError(`${key} must be a number.`);
           }
           if (key === "output" && !["human", "json", "plain"].includes(value)) throw new UsageError("output must be human, json or plain.");
-          if (key === "defaultServer" && !["food", "instamart", "dineout"].includes(value)) throw new UsageError("defaultServer must be food, instamart or dineout.");
+          if (key === "defaultServer" && !["food", "instamart", "dineout", "scenes"].includes(value)) throw new UsageError("defaultServer must be food, instamart, dineout or scenes.");
           await setProfileField(name, key as keyof ProfileConfig, v as never);
           renderResult({ updated: { name, key, value: v } }, { ...opts, tool: "profile.set" });
         });

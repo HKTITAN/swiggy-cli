@@ -25,4 +25,4 @@ llm-wiki/
 
 ## Why it lives in this repo
 
-Everything this CLI knows about Swiggy MCP — 51 tools, the payment stage, auth quirks, rate limits, what changed between April and September 2026 — was learned by reading Swiggy's docs, blog posts and announcements. The wiki keeps that knowledge compiled, dated and cross-referenced so the next update (human or agent) starts from what is already known instead of re-reading 400 KB of docs. The `skills/` and `wiki/` directories are the *product* documentation; `llm-wiki/` is the *research* memory behind them.
+Everything this CLI knows about Swiggy's API — 62 tools on four servers, the payment stage, auth and refresh, rate limiting, what changed between April and November 2026 — was learned by reading Swiggy's docs, blog posts and announcements. The wiki keeps that knowledge compiled, dated and cross-referenced so the next update (human or agent) starts from what is already known instead of re-reading 630 KB of docs. The `skills/` and `wiki/` directories are the *product* documentation; `llm-wiki/` is the *research* memory behind them.

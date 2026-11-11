@@ -5,12 +5,12 @@ license: MIT
 compatibility: Requires swiggy-cli signed in. Places real orders that cost real money.
 metadata:
   author: HKTITAN
-  version: "0.2.4"
+  version: "0.3.0"
 ---
 
 # swiggy-checkout
 
-`checkout` calls `place_food_order` / `checkout` upstream. Orders cannot be cancelled through the API (Swiggy customer care: 080-67466729), so this skill is strict about consent.
+`checkout` calls `place_food_order` / `checkout` upstream. Orders cannot be cancelled through the API (Swiggy customer care: 080-67466729), and Swiggy does not de-duplicate order placement, so this skill is strict about consent and about retries. Table bookings and event tickets have their own skills (`swiggy-dineout-booking`, `swiggy-scenes`).
 
 ## Pre-flight (all three, every time)
 
@@ -32,6 +32,8 @@ Did the user name a method?
 
 `swiggy <server> payment-options --json` is the source of truth: offer only methods it returns. Never ask the user for a UPI ID/VPA (not supported, NPCI rule).
 
+Swiggy Money (Food and Instamart): offer it only when `payment-options` lists it (`data.swiggyMoney.available: true`). That means it can be chosen, not that the balance covers the order. `--pay swiggypay` debits the balance during order placement: no pay link, no polling, no confirm step.
+
 ## Run
 
 ```bash
@@ -43,6 +45,8 @@ swiggy instamart checkout --pay cash --yes --json --no-interactive
 swiggy food checkout --pay upi --wait --yes --json --no-interactive
 # UPI in two steps (agent hands the link over, resumes later) — see swiggy-pay
 swiggy food checkout --pay upi --yes --json --no-interactive
+# Swiggy Money, only when payment-options offered it
+swiggy instamart checkout --pay swiggypay --yes --json --no-interactive
 ```
 
 `--note "<text>"` (Food only) sends a note to the restaurant, e.g. "less spicy". It is not for delivery instructions.
@@ -52,7 +56,8 @@ swiggy food checkout --pay upi --yes --json --no-interactive
 - `meta.payment.pending === false` and `data.status` `CONFIRMED`/`PLACED` → placed. Quote `meta.message` verbatim (it carries Swiggy branding) and save `data.orderId`.
 - `meta.payment.pending === true` → **not placed yet.** Say "Complete the payment in your UPI app, I'll confirm once it succeeds", give `meta.payment.bridgeUrl`, then follow `swiggy-pay` using `meta.payment.next`.
 - exit 10 `PAYMENT_FAILED` → read `error.hint`; do not call checkout again blindly.
-- exit 6 `MCP_ERROR` → surface `error.message`; then run `swiggy <server> orders --active --json` before any retry, because a 5xx may have placed the order anyway.
+- exit 6 `MCP_ERROR` → surface `error.message`; then run `swiggy <server> orders --active --json` before any retry, because a 5xx may have placed the order anyway. If a Swiggy Money payment failed, do not say "nothing was charged" unless the message says so; ask the user to check recent orders and their balance in the Swiggy app.
+- exit 5 `NETWORK` with `error.details.mayHavePlacedOrder: true` → the request may have reached Swiggy. Do not run checkout again. Run `swiggy <server> orders --json` (Instamart: check every store; a multi-store checkout places one order per store and can partly succeed). Place again only if the order is not there and the user agrees.
 
 ## Never
 

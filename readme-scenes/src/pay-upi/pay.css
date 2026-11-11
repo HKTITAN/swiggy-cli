@@ -1,0 +1,47 @@
+/* A device pair: the terminal pinned top-left and off the bottom, the phone a
+   gutter from the right edge, straddling the terminal's right side. */
+.pu .pu-term { width: 640px; height: 600px; }
+
+.pu .pu-fill { display: flex; align-items: center; gap: 3ch; min-height: 1.65em; padding-left: 2ch; }
+.pu .pu-link { color: var(--sx-orange); text-decoration: underline; text-underline-offset: 3px; }
+.pu .pu-poll { display: flex; align-items: center; gap: 1ch; }
+.pu .pu-meter { width: 96px; flex: none; }
+.pu .pu-done { color: var(--sx-ok); font-weight: 700; }
+
+.pu .pu-phone { position: absolute; top: 72px; right: var(--gutter); }
+
+/* Inside the phone everything is in screen points */
+.pu .pu-page {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 24px 24px 0;
+  color: #10100f;
+  font-family: var(--sx-sans);
+}
+
+.pu .pu-page__label { margin-top: 28px; color: #6f6b64; font-size: 15px; line-height: 20px; }
+.pu .pu-page__amount { margin-top: 4px; font-size: 44px; font-weight: 700; letter-spacing: -0.02em; line-height: 50px; font-variant-numeric: tabular-nums; }
+.pu .pu-page__for { margin-top: 4px; color: #77777c; font-size: 15px; line-height: 20px; }
+
+.pu .pu-page__open {
+  --ss-button-height: 52px;
+  align-self: stretch;
+  margin-top: 24px;
+  border-radius: 14px;
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.pu .pu-page__or { align-self: center; margin-top: 22px; color: #77777c; font-size: 13px; line-height: 18px; }
+
+.pu .pu-page__qr {
+  align-self: center;
+  width: 230px;
+  height: 230px;
+  margin-top: 14px;
+  padding: 14px;
+  border-radius: 18px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.1);
+  fill: #10100f;
+}

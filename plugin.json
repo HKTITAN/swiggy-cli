@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "swiggy-cli",
-  "version": "0.2.4",
-  "description": "Swiggy for AI agents: skills for the official Swiggy MCP servers (Food, Instamart, Dineout — 51 tools, UPI/Swiggy Money payments) and for the swiggy-cli wrapper, plus the three MCP server connections.",
+  "version": "0.3.0",
+  "description": "Swiggy for AI agents: skills for Swiggy's four services (Food, Instamart, Dineout, Scenes: 62 tools, UPI and Swiggy Money payments) and for the swiggy-cli, plus the four server connections.",
   "author": {
     "name": "Harshit Khemani",
     "email": "harshitkhemani@gmail.com",
@@ -11,7 +11,20 @@
   "homepage": "https://github.com/HKTITAN/swiggy-cli",
   "repository": "https://github.com/HKTITAN/swiggy-cli",
   "license": "MIT",
-  "keywords": ["swiggy", "mcp", "food", "instamart", "dineout", "upi", "payments", "agent-skills", "cli", "india"],
+  "keywords": [
+    "swiggy",
+    "mcp",
+    "food",
+    "instamart",
+    "dineout",
+    "events",
+    "scenes",
+    "upi",
+    "payments",
+    "agent-skills",
+    "cli",
+    "india"
+  ],
   "extensions": {
     "com.anthropic.claude-code": {
       "manifest": "./.claude-plugin/plugin.json",

@@ -9,7 +9,7 @@ const COLLECTIONS = ["EATRIGHT", "BOLT", "STORE_99"] as const;
 
 /**
  * Swiggy Food (mcp.swiggy.com/food) — 20 tools. Parameter names verified against
- * https://mcp.swiggy.com/builders/docs/reference/food/ on 2026-09-05.
+ * https://mcp.swiggy.com/builders/docs/reference/food/ on 2026-11-11.
  *
  * Positional arguments accept a row number from the last listing (`swiggy food menu 2`,
  * `swiggy food add 3 --qty 2`) or a raw id.

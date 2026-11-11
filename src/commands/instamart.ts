@@ -6,8 +6,8 @@ import { attachPayFlags, attachPaymentCommands, placeOrderWithPayment, type PayF
 import { resolveRef } from "../lib/recent.js";
 
 /**
- * Swiggy Instamart (mcp.swiggy.com/im) — 19 tools. Parameter names verified against
- * https://mcp.swiggy.com/builders/docs/reference/instamart/ on 2026-09-05.
+ * Swiggy Instamart (mcp.swiggy.com/im) — 16 tools. Parameter names verified against
+ * https://mcp.swiggy.com/builders/docs/reference/instamart/ on 2026-11-11.
  *
  * Upstream `update_cart` REPLACES the cart. `swiggy instamart add` therefore reads the current cart
  * and merges, so it behaves the way a person expects; `set-cart` exposes the raw replace semantics.

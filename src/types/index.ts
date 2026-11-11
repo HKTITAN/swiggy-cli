@@ -1,6 +1,6 @@
-export type ServerName = "food" | "instamart" | "dineout";
+export type ServerName = "food" | "instamart" | "dineout" | "scenes";
 
-export const SERVER_NAMES: ServerName[] = ["food", "instamart", "dineout"];
+export const SERVER_NAMES: ServerName[] = ["food", "instamart", "dineout", "scenes"];
 
 export interface ServerEndpoint {
   name: ServerName;
@@ -12,9 +12,7 @@ export interface EnvelopeMeta {
   profile?: string;
   /** Human-readable message the Swiggy tool returned alongside `data`. */
   message?: string;
-  /** Parsed `X-RateLimit-*` headers from the last MCP response, when present. */
-  rateLimit?: { limit?: number; remaining?: number; reset?: number };
-  /** `_meta.swiggy.deprecation` from the tool result, when emitted upstream. */
+  /** `_meta.swiggy.deprecation` from the tool result. Swiggy does not emit it today; passed through if it ever appears. */
   deprecation?: unknown;
   /** Payment orchestration summary (only for `--pay` / `--wait` flows). */
   payment?: unknown;
@@ -91,7 +89,7 @@ export interface ProfileConfig {
   defaultCity?: string;
   /** Saved Swiggy address id used when a command needs `addressId` and none is passed. */
   defaultAddressId?: string;
-  /** Default coordinates for Dineout commands (`latitude` / `longitude`). */
+  /** Default coordinates for Dineout and Scenes commands (`latitude` / `longitude`). */
   defaultLat?: number;
   defaultLng?: number;
   output?: "human" | "json" | "plain";

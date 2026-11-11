@@ -4,11 +4,11 @@ import { existsSync } from "node:fs";
 import { dirname } from "node:path";
 import type { EnvelopeMeta, OutputOptions, ProfileConfig, ServerName } from "../types/index.js";
 import { getCurrentProfile } from "../lib/config.js";
-import { McpClient, extractDeprecation, extractToolPayload, unwrapSwiggyEnvelope } from "../lib/mcp.js";
+import { McpClient, extractDeprecation, extractLocationContext, extractToolErrorMessage, extractToolPayload, unwrapSwiggyEnvelope } from "../lib/mcp.js";
 import { renderError, renderResult, startSpinner, brand, dim, note, type RenderContext } from "../lib/output.js";
 import { CliError, UsageError } from "../lib/errors.js";
 import { confirm } from "../lib/confirm.js";
-import { DESTRUCTIVE_TOOLS } from "../lib/aliases.js";
+import { DESTRUCTIVE_TOOLS, LEGACY_NOTE, LEGACY_TOOLS, NON_IDEMPOTENT_TOOLS } from "../lib/aliases.js";
 import { isMachineMode } from "../lib/tty.js";
 import { getPrompter } from "../lib/prompter.js";
 import { PATHS } from "../lib/paths.js";
@@ -81,17 +81,24 @@ export async function invokeTool(server: ServerName, tool: string, args: unknown
     result = await client.callTool(tool, args);
   } catch (err) {
     sp.fail(`${labelFor(tool)} · ${server}`);
+    // Swiggy does not de-duplicate order placement. If the response was lost, the order may exist.
+    if (NON_IDEMPOTENT_TOOLS.has(tool) && err instanceof CliError && err.code === "NETWORK") {
+      err.hint = `The request may have reached Swiggy. Do NOT run this again yet: check ${orderCheckCommand(server)} first, and place the order again only if it is not there.`;
+      err.details = { ...(typeof err.details === "object" && err.details ? err.details : {}), mayHavePlacedOrder: true };
+    }
+    if (LEGACY_TOOLS[server].includes(tool) && err instanceof CliError && err.code === "MCP_ERROR" && !err.hint) {
+      err.hint = `"${tool}" is ${LEGACY_NOTE}. See: swiggy tools ${server}`;
+    }
     throw err;
   }
   const meta: EnvelopeMeta = {};
-  if (client.lastRateLimit) meta.rateLimit = client.lastRateLimit;
   const deprecation = extractDeprecation(result);
   if (deprecation) meta.deprecation = deprecation;
 
   if (result.isError) {
     sp.fail(`${labelFor(tool)} · ${server}`);
-    const message = extractMcpToolErrorMessage(result) ?? `Tool "${tool}" returned an error`;
-    throw new CliError("MCP_ERROR", message, { details: result, hint: hintForToolError(server, message) });
+    const message = extractToolErrorMessage(result) ?? `Tool "${tool}" returned an error`;
+    throw new CliError("MCP_ERROR", message, { details: result, hint: hintForToolError(server, message) ?? (LEGACY_TOOLS[server].includes(tool) ? `"${tool}" is ${LEGACY_NOTE}.` : undefined) });
   }
   const payload = extractToolPayload(result);
   const unwrapped = unwrapSwiggyEnvelope(payload);
@@ -100,13 +107,15 @@ export async function invokeTool(server: ServerName, tool: string, args: unknown
     const message = unwrapped.error.message ?? "Tool reported failure.";
     const reportLink = typeof unwrapped.error.reportLink === "string" ? unwrapped.error.reportLink : undefined;
     throw new CliError("MCP_ERROR", message, {
-      details: { error: unwrapped.error, data: unwrapped.data, ...(meta.rateLimit ? { rateLimit: meta.rateLimit } : {}) },
+      details: { error: unwrapped.error, data: unwrapped.data },
       hint: hintForToolError(server, message) ?? (reportLink ? `Diagnostics: ${reportLink}` : `Run: swiggy ${server} report-error --tool ${tool} --message "<what you saw>"`),
     });
   }
   sp.succeed(`${labelFor(tool)} ${dim(`· ${server}/${tool}`, opts)}`);
   if (unwrapped.message) meta.message = unwrapped.message;
-  return { data: unwrapped.data, message: unwrapped.message, extra: unwrapped.extra, raw: result, meta, profileName, profile };
+  const location = extractLocationContext(result);
+  const extra = location || unwrapped.extra ? { ...location, ...unwrapped.extra } : undefined;
+  return { data: unwrapped.data, message: unwrapped.message, extra, raw: result, meta, profileName, profile };
 }
 
 export async function callTool(
@@ -140,7 +149,11 @@ export async function renderOutcome(
   // Remember numbered rows + follow-up context so the next command can say "#2". Awaited (a few ms): inside
   // a warm session the next command may run immediately and must see the rows.
   const recent = extractRecent(server, tool, out.data, out.extra);
-  if (recent) await remember(recent.kind, server, recent.entries, recent.context);
+  if (recent) {
+    // Secondary lists first, so the primary one stays "the last listing" a bare row number refers to.
+    for (const more of recent.more ?? []) await remember(more.kind, server, more.entries);
+    await remember(recent.kind, server, recent.entries, recent.context);
+  }
   const native = !opts.json && !opts.plain && !opts.raw && !humanRenderer ? viewFor(server, tool) : undefined;
   if (native) {
     const text = native(out.data, { ...ctx, message: out.message });
@@ -307,8 +320,23 @@ interface CoordsCache {
   savedAt: number;
 }
 
+type CoordScope = "dineout" | "scenes";
+const coordsFile = (scope: CoordScope): string => (scope === "scenes" ? PATHS.scenesCoordsFile : PATHS.dineoutCoordsFile);
+
+/** Where to look when an order-placing call fails mid-flight. */
+function orderCheckCommand(server: ServerName): string {
+  if (server === "food") return "`swiggy food orders`";
+  if (server === "instamart") return "`swiggy instamart orders` (a multi-store checkout places one order per store and can partly succeed)";
+  return "your bookings in the Swiggy app (the booking status command needs the order id from the lost response)";
+}
+
 /** Remember coordinates Swiggy returned (Dineout search/details) so slots/book can reuse them. */
 export async function rememberDineoutCoords(data: unknown, extra?: Record<string, unknown>, source = "dineout"): Promise<void> {
+  return rememberCoords("dineout", data, extra, source);
+}
+
+/** Remember the coordinates a response resolved, per service, for that service's follow-up calls. */
+export async function rememberCoords(scope: CoordScope, data: unknown, extra?: Record<string, unknown>, source: string = scope): Promise<void> {
   const pick = (o: unknown): Coords | undefined => {
     if (!o || typeof o !== "object") return undefined;
     const r = o as Record<string, unknown>;
@@ -319,9 +347,9 @@ export async function rememberDineoutCoords(data: unknown, extra?: Record<string
   const c = pick(extra) ?? pick(data);
   if (!c) return;
   try {
-    await mkdir(dirname(PATHS.dineoutCoordsFile), { recursive: true });
+    await mkdir(dirname(coordsFile(scope)), { recursive: true });
     const cache: CoordsCache = { ...c, source, savedAt: Date.now() };
-    await writeFile(PATHS.dineoutCoordsFile, JSON.stringify(cache, null, 2));
+    await writeFile(coordsFile(scope), JSON.stringify(cache, null, 2));
   } catch {
     /* best-effort */
   }
@@ -333,17 +361,22 @@ export async function rememberDineoutCoords(data: unknown, extra?: Record<string
  * expose coordinates, so a search with --address-id is the canonical way to obtain them.
  */
 export async function resolveDineoutCoords(opts: ExecOpts, lat: string | undefined, lng: string | undefined, requiredBy: string): Promise<Coords> {
+  return resolveCoords("dineout", opts, lat, lng, requiredBy);
+}
+
+/** Coordinates for a Dineout or Scenes call: --lat/--lng → profile defaults → the last ones that service returned. */
+export async function resolveCoords(scope: CoordScope, opts: ExecOpts, lat: string | undefined, lng: string | undefined, requiredBy: string): Promise<Coords> {
   const la = num(lat, "--lat");
   const ln = num(lng, "--lng");
   if (la !== undefined && ln !== undefined) return { latitude: la, longitude: ln };
   if ((la === undefined) !== (ln === undefined)) throw new UsageError("--lat and --lng must be passed together.");
   const { profile } = await getCurrentProfile(opts.profile);
   if (typeof profile.defaultLat === "number" && typeof profile.defaultLng === "number") return { latitude: profile.defaultLat, longitude: profile.defaultLng };
-  if (existsSync(PATHS.dineoutCoordsFile)) {
+  if (existsSync(coordsFile(scope))) {
     try {
-      const cached = JSON.parse(await readFile(PATHS.dineoutCoordsFile, "utf8")) as CoordsCache;
+      const cached = JSON.parse(await readFile(coordsFile(scope), "utf8")) as CoordsCache;
       if (Number.isFinite(cached.latitude) && Number.isFinite(cached.longitude)) {
-        note(dim(`using coordinates from your last dineout ${cached.source} (${cached.latitude}, ${cached.longitude})`, opts), opts);
+        note(dim(`using coordinates from your last ${scope} ${cached.source} (${cached.latitude}, ${cached.longitude})`, opts), opts);
         return { latitude: cached.latitude, longitude: cached.longitude };
       }
     } catch {
@@ -352,25 +385,10 @@ export async function resolveDineoutCoords(opts: ExecOpts, lat: string | undefin
   }
   throw new UsageError(
     `Missing coordinates for ${requiredBy}.`,
-    "Pass --lat/--lng, or run `swiggy dineout search -q <term> --address-id <id>` first (its response carries latitude/longitude), or set defaults: swiggy profile set default defaultLat <lat> && swiggy profile set default defaultLng <lng>"
+    scope === "scenes"
+      ? "Pass --lat/--lng, or run `swiggy scenes discover --address-id <id|#>` first (its response carries the coordinates), or set defaults: swiggy profile set default defaultLat <lat> && swiggy profile set default defaultLng <lng>"
+      : "Pass --lat/--lng (Dineout takes the coordinates of a city or area, not a saved address), or set defaults once: swiggy profile set default defaultLat <lat> && swiggy profile set default defaultLng <lng>"
   );
-}
-
-function extractMcpToolErrorMessage(result: { content?: Array<{ type?: string; text?: string }> }): string | undefined {
-  const texts = (result.content ?? [])
-    .filter((chunk) => chunk?.type === "text" && typeof chunk.text === "string")
-    .map((chunk) => (chunk.text as string).trim())
-    .filter((text) => text.length > 0);
-  if (texts.length === 0) return undefined;
-  const first = texts[0]!;
-  try {
-    const parsed = JSON.parse(first) as { error?: { message?: string }; message?: string };
-    if (typeof parsed?.error?.message === "string") return parsed.error.message;
-    if (typeof parsed?.message === "string") return parsed.message;
-  } catch {
-    /* keep raw text */
-  }
-  return first;
 }
 
 export function hintForToolError(server: ServerName, message: string): string | undefined {
@@ -378,11 +396,12 @@ export function hintForToolError(server: ServerName, message: string): string | 
     return `Run: swiggy ${server} addresses, then retry with --address-id <id> (or set defaultAddressId in your profile)`;
   }
   if (/latitude|longitude|location/i.test(message) && server === "dineout") {
-    return "Run: swiggy dineout search -q <term> --address-id <id> first, or pass --lat/--lng";
+    return "Pass --lat/--lng for the city or area (Dineout does not take a saved address id)";
   }
   if (/not whitelisted/i.test(message)) return "This account is not enabled for the tool yet (Swiggy rolls tools out gradually).";
   if (/out of stock|unserviceable|not serviceable/i.test(message)) return "Search again for alternatives or try another address.";
-  if (/minimum order/i.test(message)) return "Add more items — Instamart needs ₹99 minimum; Food carts are capped at ₹1000 for Builders Club orders.";
+  if (/minimum order/i.test(message)) return "Add more items to reach the minimum order value.";
+  if (/sold out|unavailable/i.test(message) && server === "scenes") return "Pick a different show: swiggy scenes shows <event>";
   if (/required/i.test(message)) return `Run: swiggy schema ${server} <tool> --json to inspect required arguments`;
   return undefined;
 }

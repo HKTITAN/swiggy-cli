@@ -1,11 +1,11 @@
 ---
 title: Food server
 type: entity
-updated: 2026-09-05
-sources: [sources/swiggy-builders-docs, sources/create-address-ga-blog, sources/upi-payments-blog]
+updated: 2026-11-11
+sources: [sources/swiggy-builders-docs-2026-11, sources/swiggy-builders-docs, sources/create-address-ga-blog, sources/upi-payments-blog]
 tags: [food, server]
 ---
-`POST https://mcp.swiggy.com/food` — restaurant discovery, menus, a single-restaurant cart, coupons, order placement (Cash or UPI), tracking. 20 tools as of 2026-09-05.
+`POST https://mcp.swiggy.com/food` — restaurant discovery, menus, a single-restaurant cart, coupons, order placement (Cash, UPI or Swiggy Money), tracking. 20 tools as of 2026-11-11 (unchanged since 2026-09-05).
 
 ## Details
 | Stage | Tools |
@@ -27,7 +27,10 @@ tags: [food, server]
 - Coupons: `fetch_food_coupons { restaurantId, addressId, couponCode? }`, `apply_food_coupon { couponCode, addressId, cartId? }`; some require online payment (recipe).
 - `place_food_order { addressId, paymentMethod?, intentApp?, generateUPIQR?, noteToRestaurant? }` → Cash: `{orderId, status:"CONFIRMED", normalizedStatus:"success", items[], totalAmount…}`; UPI: `PENDING_PAYMENT` with `paasId, transactionId, bridgeUrl, upiIntentUrl, isQrFlow, pollingIntervalInMs, maxTimeToPollForInMs, addressId, cartId, lat, lng` (reference). Not idempotent; check `get_food_orders` before retrying (ship-to-production).
 - Food confirm contract: `confirm_order { orderId, addressId, lat, lng, cartId? }` — no `paasId`; `check_payment_status` must echo `addressId/lat/lng` or the order stays pending (pay-with-upi recipe, 2026-09-05).
-- Builders Club Food orders capped at ₹1000 (changelog "known limitations"; recipe).
+- Cart cap: a ₹1000 cap for Builders Club orders is still mentioned in the order-food recipe, the voice-vs-chat page and the v1.0 "known limitations" list, but in no reference page. Unverified as a current limit; swiggy-cli stopped hardcoding it in 0.3.0 (docs snapshot 2026-11-11).
+- Swiggy Money: `get_payment_options` returns `swiggyMoney { available, id:"SwiggyPay", displayName }` when enabled; place with `paymentMethod:"SwiggyPay"`, no `intentApp`/`generateUPIQR`; debited during placement, no polling or `confirm_order` (reference/food/get_payment_options, 2026-11-11).
+- `place_food_order` is not de-duplicated and takes no idempotency key; after a lost response check `get_food_orders` before any retry (build/ship-to-production, 2026-11-11).
+- `structuredContent` is present on every Food response, including errors (build/read-tool-results, 2026-11-11).
 - Tracking: `track_food_order { orderId? }` (all active when omitted) → `orders[]{orderId, title, subtitle, etaText, orderStatus, progressPercentage}`; `get_food_delivery_status { orderId }` → `deliveryBy`, `etaText`, `delivered`, `cancelled`, `pollIntervalSec`; poll ≥ 10 s (reference, rate-limits).
 - Cancellation: not via API — customer care 080-67466729 (place_food_order description).
 
@@ -42,3 +45,4 @@ tags: [food, server]
 
 ## Changelog
 - 2026-09-05 — created.
+- 2026-11-11 — November snapshot: Swiggy Money, no de-duplication. Superseded: "Builders Club Food orders capped at ₹1000 (changelog known limitations; recipe)" as a stated fact.

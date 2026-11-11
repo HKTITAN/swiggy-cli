@@ -55,7 +55,7 @@ export function buildGenericCommands(program: Command): void {
             const { profile, name: profileName } = await getCurrentProfile(opts.profile);
             if (o.offline) {
               const data = TOOL_CATALOG[server].map((name) => ({ name, destructive: DESTRUCTIVE_TOOLS.has(name), write: WRITE_TOOLS.has(name) }));
-              renderResult(data, { ...opts, server, profile: opts.profile || profileName, meta: { source: "bundled catalog (2026-09-05)" } });
+              renderResult(data, { ...opts, server, profile: opts.profile || profileName, meta: { source: "bundled catalog (2026-11-11)" } });
               return;
             }
             const sp = startSpinner(`discovering tools on ${server}`, opts);
@@ -71,7 +71,7 @@ export function buildGenericCommands(program: Command): void {
             const known = new Set(TOOL_CATALOG[server]);
             const data = tools.map((t) => ({ name: t.name, description: t.description ?? "", destructive: DESTRUCTIVE_TOOLS.has(t.name), inCatalog: known.has(t.name) }));
             const missing = TOOL_CATALOG[server].filter((n) => !tools.some((t) => t.name === n));
-            renderResult(data, { ...opts, server, profile: opts.profile || profileName, meta: { rateLimit: client.lastRateLimit, notInCatalog: data.filter((d) => !d.inCatalog).map((d) => d.name), missingFromServer: missing } });
+            renderResult(data, { ...opts, server, profile: opts.profile || profileName, meta: { notInCatalog: data.filter((d) => !d.inCatalog).map((d) => d.name), missingFromServer: missing } });
           },
           { server }
         );
@@ -177,7 +177,7 @@ export function buildGenericCommands(program: Command): void {
       .command("mcp-config")
       .description("Print MCP client config for the official Swiggy servers (claude|cursor|vscode|windsurf|codex|plugin|generic)")
       .option("--client <name>", "target client", "generic")
-      .option("--servers <list>", "comma-separated subset: food,instamart,dineout", "food,instamart,dineout")
+      .option("--servers <list>", "comma-separated subset: food,instamart,dineout,scenes", "food,instamart,dineout,scenes")
       .action(async (o: { client: string; servers: string }) => {
         const opts = readGlobalOpts(program);
         await run(opts, async () => {

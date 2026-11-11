@@ -10,13 +10,13 @@ import { loadTable } from "../lib/lazy.js";
 import { normalizeServer } from "./generic.js";
 
 export function buildAuthCommands(program: Command): void {
-  const auth = program.command("auth").description("Sign in to Swiggy (OAuth 2.1 + PKCE). One login covers all three servers.");
+  const auth = program.command("auth").description("Sign in to Swiggy (OAuth 2.1 + PKCE). One login covers all four services.");
 
   attachOutputOptions(
     auth
       .command("init")
       .alias("login")
-      .description("Sign in via the browser (phone + OTP). Stores one token for food, instamart and dineout.")
+      .description("Sign in via the browser (phone + OTP). Stores one token for food, instamart, dineout and scenes.")
       .option("--server <name>", `store the token for one server only: ${SERVER_NAMES.join("|")}`)
       .option("--client-id <id>", "OAuth client_id (overrides SWIGGY_OAUTH_CLIENT_ID). Not needed: Swiggy supports dynamic registration.")
       .option("--client-secret <secret>", "OAuth client_secret for confidential clients (overrides SWIGGY_OAUTH_CLIENT_SECRET)")

@@ -5,20 +5,31 @@
     "email": "harshitkhemani@gmail.com"
   },
   "metadata": {
-    "description": "Swiggy MCP skills and CLI for AI agents — Food, Instamart, Dineout, UPI/Swiggy Money payments.",
-    "version": "0.2.4"
+    "description": "Swiggy skills and CLI for AI agents: Food, Instamart, Dineout, Scenes, UPI and Swiggy Money payments.",
+    "version": "0.3.0"
   },
   "plugins": [
     {
       "name": "swiggy",
       "source": "./",
-      "description": "Skills for the official Swiggy MCP servers and the swiggy-cli, plus the three MCP server connections.",
-      "version": "0.2.4",
-      "author": { "name": "Harshit Khemani", "email": "harshitkhemani@gmail.com" },
+      "description": "Skills for Swiggy's four services and the swiggy-cli, plus the four server connections.",
+      "version": "0.3.0",
+      "author": {
+        "name": "Harshit Khemani",
+        "email": "harshitkhemani@gmail.com"
+      },
       "homepage": "https://github.com/HKTITAN/swiggy-cli",
       "repository": "https://github.com/HKTITAN/swiggy-cli",
       "license": "MIT",
-      "keywords": ["swiggy", "mcp", "food", "instamart", "dineout", "upi"],
+      "keywords": [
+        "swiggy",
+        "mcp",
+        "food",
+        "instamart",
+        "dineout",
+        "scenes",
+        "upi"
+      ],
       "category": "productivity"
     }
   ]

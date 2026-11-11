@@ -1,11 +1,11 @@
 ---
 name: swiggy-pay
-description: Complete an in-flight Swiggy UPI payment with swiggy-cli — share the pay link, poll payment status on Swiggy's cadence, confirm the order, handle failure/refund/timeout. Use after a checkout or booking returned PENDING_PAYMENT, or when the user asks "did my payment go through".
+description: Complete an in-flight Swiggy UPI payment with swiggy-cli — share the pay link, poll payment status on Swiggy's cadence, confirm the order, handle failure/refund/timeout. Use after a checkout, table booking or ticket booking returned PENDING_PAYMENT, or when the user asks "did my payment go through".
 license: MIT
 compatibility: Requires swiggy-cli signed in and the paasId/orderId from the place-order response.
 metadata:
   author: HKTITAN
-  version: "0.2.4"
+  version: "0.3.0"
 ---
 
 # swiggy-pay
@@ -51,10 +51,11 @@ Only if `--wait` reported success but `data.confirmed` is false and no confirm r
 swiggy food confirm-order --order-id <o> --address-id <a> --lat <lat> --lng <lng> --json --no-interactive
 swiggy instamart confirm-order --order-id <o> --paas-id <p> --json --no-interactive
 swiggy dineout confirm-order --order-id <o> --paas-id <p> --json --no-interactive
+swiggy scenes confirm-order --order-id <o> --paas-id <p> --json --no-interactive
 ```
 
-Food confirms by address + coordinates and never takes `paasId`; Instamart and Dineout confirm by `paasId`. `confirm_order` is idempotent and never places an unpaid order, so a duplicate call is harmless; confirming after a terminal failure is pointless — skip it.
+Food confirms by address + coordinates and never takes `paasId`; Instamart, Dineout and Scenes confirm by `paasId`. `confirm_order` is idempotent and never places an unpaid order, so a duplicate call is harmless; confirming after a terminal failure is pointless — skip it.
 
 ## Swiggy Money
 
-Swiggy announced Swiggy Money on MCP (Sept 2026): the user tops up once and the agent pays without a payment step per order. It appears as a payment-method group from `payment-options` (`SwiggyPay`). If listed, `--pay swiggypay` places the order with no pending leg; if not listed for this cart, do not pass it.
+Swiggy Money is available on Food and Instamart (not Dineout, not Scenes). It appears in `payment-options` as `data.swiggyMoney` with `available: true` and the method id `SwiggyPay`. If listed and the user chose it, `--pay swiggypay` on `checkout` debits the balance during order placement: there is no pay link, no `payment-status --wait` and no confirm step, so this skill does not apply. If it is not listed for this cart, do not pass it. Listed does not mean the balance is enough; on a failure, relay `error.message` and ask the user to check their balance and recent orders in the Swiggy app before trying again.
